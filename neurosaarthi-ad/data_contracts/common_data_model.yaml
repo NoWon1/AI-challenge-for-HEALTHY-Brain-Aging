@@ -1,0 +1,66 @@
+tables:
+  participants:
+    primary_key: participant_id
+    required_columns:
+      participant_id: string
+      cohort: string
+    recommended_columns:
+      sex: string
+      birth_year: integer
+      education_years: number
+      language: string
+      urban_rural: string
+  visits:
+    primary_key: visit_id
+    required_columns:
+      visit_id: string
+      participant_id: string
+      cohort: string
+      visit_index: integer
+      age_at_visit: number
+    recommended_columns:
+      visit_date: date
+      baseline_days: integer
+      diagnosis: string
+      cdr_global: number
+      cognitive_status: string
+  modality_features:
+    primary_key: feature_row_id
+    required_columns:
+      feature_row_id: string
+      participant_id: string
+      visit_id: string
+      cohort: string
+      modality: string
+      feature_name: string
+      value: number
+    recommended_columns:
+      unit: string
+      source_variable: string
+      qc_flag: string
+      derived: boolean
+  outcomes:
+    primary_key: outcome_id
+    required_columns:
+      outcome_id: string
+      participant_id: string
+      anchor_visit_id: string
+      endpoint: string
+      horizon_days: integer
+      event: integer
+    recommended_columns:
+      event_time_days: integer
+      future_score: number
+      censoring_reason: string
+modalities:
+  - clinical
+  - cognition
+  - mri
+  - oct
+  - biochem
+  - genomics
+  - gait
+  - balance
+  - audiometry
+  - spirometry
+

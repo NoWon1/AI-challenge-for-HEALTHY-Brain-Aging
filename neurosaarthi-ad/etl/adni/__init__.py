@@ -1,0 +1,2 @@
+"""ADNI ETL adapter package."""
+

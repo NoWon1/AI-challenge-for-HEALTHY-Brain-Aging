@@ -1,0 +1,24 @@
+[project]
+name = "neurosaarthi-ad"
+version = "0.1.0"
+description = "Multimodal dementia risk, progression, and twin-lite scaffold for the CBR Healthy Brain Aging AI Challenge."
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.23",
+  "pandas>=1.5",
+  "scikit-learn>=1.2",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0",
+]
+dashboard = [
+  "streamlit>=1.30",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+

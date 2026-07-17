@@ -1,0 +1,14 @@
+feature_groups:
+  clinical:
+    required: false
+  cognition:
+    required: true
+  mri:
+    required: false
+  oct:
+    required: false
+  biochem:
+    required: false
+  genomics:
+    required: false
+

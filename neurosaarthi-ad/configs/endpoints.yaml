@@ -1,0 +1,13 @@
+endpoints:
+  incident_mci_3y:
+    anchor_state: cognitively_unimpaired
+    event_state: mci
+    horizon_days: 1095
+  incident_dementia_5y:
+    anchor_state: mci_or_high_risk
+    event_state: dementia
+    horizon_days: 1825
+  cognitive_decline_2y:
+    target: future_cognitive_composite
+    horizon_days: 730
+

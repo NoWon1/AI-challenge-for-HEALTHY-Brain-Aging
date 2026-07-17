@@ -1,0 +1,20 @@
+cohorts:
+  adni:
+    adapter: etl.adni.adapter.AdniAdapter
+    raw_dir: data/raw/adni
+  nacc:
+    adapter: etl.nacc.adapter.NaccAdapter
+    raw_dir: data/raw/nacc
+  aibl:
+    adapter: etl.aibl.adapter.AiblAdapter
+    raw_dir: data/raw/aibl
+  oasis:
+    adapter: etl.oasis.adapter.OasisAdapter
+    raw_dir: data/raw/oasis
+  tlsa:
+    adapter: etl.tlsa.adapter.TlsaAdapter
+    raw_dir: data/secure/tlsa
+  sanscog:
+    adapter: etl.sanscog.adapter.SanscogAdapter
+    raw_dir: data/secure/sanscog
+

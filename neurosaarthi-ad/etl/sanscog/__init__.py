@@ -1,0 +1,2 @@
+"""SANSCOG ETL adapter package."""
+
