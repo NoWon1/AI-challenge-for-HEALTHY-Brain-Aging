@@ -6,5 +6,5 @@ Large-scale longitudinal clinical validation with UDS annual follow-up, imaging,
 
 ## Do Not Use For
 
-Population incidence/prevalence estimation or naive CSF assay pooling without harmonisation.
-
+- Population incidence/prevalence estimation.
+- Naive CSF assay pooling without harmonisation.

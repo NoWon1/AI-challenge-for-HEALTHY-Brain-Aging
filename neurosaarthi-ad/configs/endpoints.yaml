@@ -1,4 +1,8 @@
 endpoints:
+  incident_progression_1y:
+    anchor_state: cognitively_unimpaired_or_mci
+    event_state: mci_or_dementia
+    horizon_days: 365
   incident_mci_3y:
     anchor_state: cognitively_unimpaired
     event_state: mci
@@ -10,4 +14,6 @@ endpoints:
   cognitive_decline_2y:
     target: future_cognitive_composite
     horizon_days: 730
-
+  cognitive_trajectory_5y:
+    target: future_cognitive_composite
+    forecast_years: [0, 1, 2, 3, 5]

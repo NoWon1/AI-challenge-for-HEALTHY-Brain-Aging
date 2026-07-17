@@ -7,4 +7,3 @@ Indian ancestry-aware genomics QC, allele-frequency annotation, ancestry PCs, an
 ## Do Not Use For
 
 Direct dementia outcome modelling. GenomeIndia is a population genomics reference, not an Alzheimer's progression cohort.
-

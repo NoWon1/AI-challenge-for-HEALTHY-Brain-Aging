@@ -37,6 +37,8 @@ tables:
     recommended_columns:
       unit: string
       source_variable: string
+      source_unit: string
+      conversion: string
       qc_flag: string
       derived: boolean
   outcomes:
@@ -63,4 +65,3 @@ modalities:
   - balance
   - audiometry
   - spirometry
-

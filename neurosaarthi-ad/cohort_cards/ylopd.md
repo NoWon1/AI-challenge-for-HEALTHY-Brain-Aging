@@ -2,9 +2,13 @@
 
 ## Best Use
 
-Reusable neurodegeneration pipeline ideas: multimodal visit handling, brain/retinal imaging, genomics, biomarkers, and longitudinal infrastructure.
+- Reusable neurodegeneration pipeline ideas:
+    - Multimodal visit handling.
+    - Brain/retinal imaging.
+    - Genomics.
+    - Biomarkers.
+    - Longitudinal infrastructure.
 
 ## Do Not Use For
 
-Alzheimer's or dementia endpoint model training.
-
+- Alzheimer's or dementia endpoint model training.

@@ -6,5 +6,5 @@ External validation for early detection and progression models using repeated bi
 
 ## Do Not Use For
 
-India-specific calibration or retinal-first claims.
-
+- India-specific calibration.
+- Retinal-first claims.

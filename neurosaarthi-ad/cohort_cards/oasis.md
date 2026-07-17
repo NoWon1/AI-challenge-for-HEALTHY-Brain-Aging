@@ -6,5 +6,5 @@ Open MRI-first prototyping, reproducible imaging benchmarks, and quick validatio
 
 ## Do Not Use For
 
-A full flagship project by itself or Indian population calibration.
-
+- A full flagship project by itself.
+- Indian population calibration.
