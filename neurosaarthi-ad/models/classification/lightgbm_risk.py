@@ -11,6 +11,7 @@ import pandas as pd
 
 try:
     import lightgbm as lgb
+
     LGBM_AVAILABLE = True
 except ImportError:
     lgb = None
@@ -28,6 +29,7 @@ except ImportError:
 
 try:
     import shap
+
     SHAP_AVAILABLE = True
 except ImportError:
     shap = None
@@ -57,10 +59,12 @@ class GBMRiskClassifier:
                 learning_rate=self.learning_rate,
                 max_depth=self.max_depth,
                 random_state=self.seed,
-                importance_type='gain',
+                importance_type="gain",
             )
         elif HistGradientBoostingClassifier is not None:
-            warnings.warn("LightGBM not found, falling back to HistGradientBoostingClassifier.")
+            warnings.warn(
+                "LightGBM not found, falling back to HistGradientBoostingClassifier."
+            )
             return HistGradientBoostingClassifier(
                 max_iter=self.n_estimators,
                 learning_rate=self.learning_rate,
@@ -68,9 +72,13 @@ class GBMRiskClassifier:
                 random_state=self.seed,
             )
         else:
-            raise ImportError("Neither lightgbm nor sklearn.ensemble.HistGradientBoostingClassifier is available.")
+            raise ImportError(
+                "Neither lightgbm nor sklearn.ensemble.HistGradientBoostingClassifier is available."
+            )
 
-    def fit(self, frame: pd.DataFrame, target_col: str = "event") -> "GBMRiskClassifier":
+    def fit(
+        self, frame: pd.DataFrame, target_col: str = "event"
+    ) -> "GBMRiskClassifier":
         """Fit the gradient boosting model with optional isotonic calibration."""
         x = frame[self.feature_columns]
         y = frame[target_col]
@@ -78,12 +86,16 @@ class GBMRiskClassifier:
         base_model = self._get_base_model()
 
         if self.calibrate and CalibratedClassifierCV is not None:
-            self.model = CalibratedClassifierCV(estimator=base_model, method="isotonic", cv=5)
+            self.model = CalibratedClassifierCV(
+                estimator=base_model, method="isotonic", cv=5
+            )
             self.model.fit(x, y)
             self._is_calibrated = True
         else:
             if self.calibrate and CalibratedClassifierCV is None:
-                warnings.warn("Calibration requested but scikit-learn is missing. Fitting uncalibrated model.")
+                warnings.warn(
+                    "Calibration requested but scikit-learn is missing. Fitting uncalibrated model."
+                )
             self.model = base_model
             self.model.fit(x, y)
             self._is_calibrated = False
@@ -93,8 +105,10 @@ class GBMRiskClassifier:
     def predict_risk(self, frame: pd.DataFrame) -> pd.Series:
         """Return probability estimates for the risk."""
         if self.model is None:
-            raise RuntimeError("Classifier must be fitted before predict_risk is called.")
-        
+            raise RuntimeError(
+                "Classifier must be fitted before predict_risk is called."
+            )
+
         x = frame[self.feature_columns]
         probabilities = self.model.predict_proba(x)[:, 1]
         return pd.Series(probabilities, index=frame.index, name="risk")
@@ -102,13 +116,17 @@ class GBMRiskClassifier:
     def feature_importance(self) -> dict[str, float]:
         """Return a dictionary mapping feature names to their importance (gain)."""
         if self.model is None:
-            raise RuntimeError("Classifier must be fitted before getting feature importance.")
-        
+            raise RuntimeError(
+                "Classifier must be fitted before getting feature importance."
+            )
+
         # If calibrated, extracting feature importance from the ensemble of calibrated models is complex.
         # We will extract it from a single model if possible, or warn.
         model_to_inspect = self.model
         if self._is_calibrated:
-            warnings.warn("Extracting feature importance from first calibrated estimator.")
+            warnings.warn(
+                "Extracting feature importance from first calibrated estimator."
+            )
             model_to_inspect = self.model.calibrated_classifiers_[0].estimator
 
         if hasattr(model_to_inspect, "feature_importances_"):
@@ -143,22 +161,26 @@ class GBMRiskClassifier:
             if isinstance(shap_vals, list):
                 return shap_vals[1]
             return shap_vals
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             warnings.warn(f"Failed to extract SHAP values: {e}")
             return None
 
-    def fit_multi_horizon(self, frame: pd.DataFrame, horizons: tuple[int, ...] = (1, 3, 5)) -> dict[int, "GBMRiskClassifier"]:
+    def fit_multi_horizon(
+        self, frame: pd.DataFrame, horizons: tuple[int, ...] = (1, 3, 5)
+    ) -> dict[int, "GBMRiskClassifier"]:
         """Train separate models per horizon.
-        
+
         Assumes target columns exist as `event_{horizon}` in the frame.
         """
         models = {}
         for horizon in horizons:
             target = f"event_{horizon}"
             if target not in frame.columns:
-                warnings.warn(f"Target column '{target}' not found. Skipping horizon {horizon}.")
+                warnings.warn(
+                    f"Target column '{target}' not found. Skipping horizon {horizon}."
+                )
                 continue
-            
+
             # create a new instance with the same parameters
             model = GBMRiskClassifier(
                 feature_columns=self.feature_columns,
@@ -172,5 +194,5 @@ class GBMRiskClassifier:
             sub_frame = frame.dropna(subset=[target])
             model.fit(sub_frame, target_col=target)
             models[horizon] = model
-            
+
         return models

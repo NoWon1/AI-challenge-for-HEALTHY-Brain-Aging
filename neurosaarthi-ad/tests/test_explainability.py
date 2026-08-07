@@ -19,7 +19,9 @@ def _make_synthetic():
 
 def test_shap_explain_returns_dataframe():
     df = _make_synthetic()
-    model = MockModel()
+    from sklearn.ensemble import RandomForestRegressor
+    model = RandomForestRegressor(n_estimators=2, max_depth=2, random_state=42)
+    model.fit(df, np.random.rand(10))
     explainer = SHAPExplainer(model=model, feature_names=['f1', 'f2', 'f3'], model_type='tree')
     
     # Normally SHAP needs real explainer setup, but if shap is not present, it uses fallback
@@ -31,7 +33,9 @@ def test_shap_explain_returns_dataframe():
 
 def test_shap_top_drivers_shape():
     df = _make_synthetic()
-    model = MockModel()
+    from sklearn.ensemble import RandomForestRegressor
+    model = RandomForestRegressor(n_estimators=2, max_depth=2, random_state=42)
+    model.fit(df, np.random.rand(10))
     explainer = SHAPExplainer(model=model, feature_names=['f1', 'f2', 'f3'], model_type='tree')
     
     top = explainer.top_drivers(df, k=2)
@@ -41,7 +45,9 @@ def test_shap_top_drivers_shape():
 
 def test_shap_modality_groups():
     df = _make_synthetic()
-    model = MockModel()
+    from sklearn.ensemble import RandomForestRegressor
+    model = RandomForestRegressor(n_estimators=2, max_depth=2, random_state=42)
+    model.fit(df, np.random.rand(10))
     explainer = SHAPExplainer(model=model, feature_names=['f1', 'f2', 'f3'], model_type='tree')
     
     modality_map = {
