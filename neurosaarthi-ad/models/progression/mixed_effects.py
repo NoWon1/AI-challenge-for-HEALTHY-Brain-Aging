@@ -67,31 +67,35 @@ class MixedEffectsTrajectory:
     def predict(self, frame: pd.DataFrame) -> pd.Series:
         """Predict the future scores for the given data."""
         if self._is_statsmodels:
-            exog = sm.add_constant(frame[self.feature_columns].astype(float).fillna(0.0))
-            exog_re = sm.add_constant(frame[[self.time_col]].astype(float).fillna(0.0))
+            exog = sm.add_constant(frame[self.feature_columns].astype(float).fillna(0.0), has_constant='add')
+            exog_re = sm.add_constant(frame[[self.time_col]].astype(float).fillna(0.0), has_constant='add')
+
+            # Vectorized base predictions for all rows
+            preds = np.array(self.result_.predict(exog), copy=True)
             
-            preds = []
-            for i, row in frame.iterrows():
-                group = row[self.group_col]
-                fixed_pred = self.result_.predict(exog.loc[[i]])[i]
-                
+            # Add random effects per group
+            for group, group_df in frame.groupby(self.group_col, sort=False):
                 if group in self.result_.random_effects:
                     re = self.result_.random_effects[group]
-                    z = exog_re.loc[i]
-                    re_pred = (z * re).sum()
-                    preds.append(fixed_pred + re_pred)
-                else:
-                    preds.append(fixed_pred)
+                    idx = group_df.index
+                    z = exog_re.loc[idx]
+                    re_pred = (z * re).sum(axis=1)
+                    # Use get_indexer to map frame indices to positional indices in preds array
+                    preds[frame.index.get_indexer(idx)] += re_pred.to_numpy()
+
             return pd.Series(preds, index=frame.index, name="predicted_" + self._target_col)
         else:
-            preds = []
-            for i, row in frame.iterrows():
-                group = row[self.group_col]
-                X = pd.DataFrame([row[self.feature_columns].astype(float).fillna(0.0)])
+            X_all = frame[self.feature_columns].astype(float).fillna(0.0)
+
+            # Vectorized global predictions
+            preds = np.array(self.global_model_.predict(X_all), copy=True)
+
+            # Overwrite with group-specific predictions where available
+            for group, group_df in frame.groupby(self.group_col, sort=False):
                 if group in self.models_:
-                    preds.append(self.models_[group].predict(X)[0])
-                else:
-                    preds.append(self.global_model_.predict(X)[0])
+                    idx = group_df.index
+                    preds[frame.index.get_indexer(idx)] = self.models_[group].predict(X_all.loc[idx])
+
             return pd.Series(preds, index=frame.index, name="predicted_" + self._target_col)
 
     def calibrate_conformal(self, residuals: np.ndarray | pd.Series, alpha: float = 0.1) -> "MixedEffectsTrajectory":

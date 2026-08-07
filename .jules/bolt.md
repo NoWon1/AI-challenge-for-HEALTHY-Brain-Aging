@@ -1,0 +1,3 @@
+## 2026-08-07 - [Vectorizing MixedEffectsTrajectory]
+**Learning:** Iterating over Pandas dataframes using iterrows is a huge anti-pattern, especially inside heavily-used prediction loops like MixedEffectsTrajectory.predict. The slowness multiplies when used in combination with row-by-row lookups of statsmodels random effects and dictionary .loc operations.
+**Action:** When working with statsmodels output (result.predict) or scikit-learn models applied to Pandas dataframes grouped by participants, always extract the base prediction matrix first (model.predict(X_all)), and then update the specific indices for each group using vectorized operations.
