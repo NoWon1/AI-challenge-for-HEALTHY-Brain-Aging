@@ -32,9 +32,15 @@ MODALITY_FEATURES: dict[str, list[str]] = {
         "memory_score",
         "executive_score",
     ],
-    "MRI": ["hippocampal_volume_mm3", "wmh_burden_ml"],
-    "Blood": ["hba1c_percent", "hs_crp_mg_l"],
-    "OCT/OCTA": ["rnfl_um", "vessel_density_percent"],
+    "MRI": [
+        "hippocampal_volume_mm3", "wmh_burden_ml",
+        "entorhinal_thickness_mm", "ventricular_volume_mm3", "cortical_thickness_mean_mm",
+    ],
+    "Blood": [
+        "hba1c_percent", "hs_crp_mg_l",
+        "total_cholesterol_mg_dl", "fasting_glucose_mg_dl",
+    ],
+    "OCT/OCTA": ["rnfl_um", "vessel_density_percent", "gfaz_area_mm2"],
     "Genomics": ["apoe_e4_count", "ancestry_pc1"],
 }
 MODALITY_WEIGHTS = {
@@ -60,10 +66,16 @@ class ParticipantProfile:
     executive_score: float
     hippocampal_volume_mm3: float | None
     wmh_burden_ml: float | None
+    entorhinal_thickness_mm: float | None
+    ventricular_volume_mm3: float | None
+    cortical_thickness_mean_mm: float | None
     hba1c_percent: float | None
     hs_crp_mg_l: float | None
+    total_cholesterol_mg_dl: float | None
+    fasting_glucose_mg_dl: float | None
     rnfl_um: float | None
     vessel_density_percent: float | None
+    gfaz_area_mm2: float | None
     apoe_e4_count: float | None
     ancestry_pc1: float | None
 
@@ -83,10 +95,16 @@ class ParticipantProfile:
                     "executive_score": self.executive_score,
                     "hippocampal_volume_mm3": self.hippocampal_volume_mm3,
                     "wmh_burden_ml": self.wmh_burden_ml,
+                    "entorhinal_thickness_mm": self.entorhinal_thickness_mm,
+                    "ventricular_volume_mm3": self.ventricular_volume_mm3,
+                    "cortical_thickness_mean_mm": self.cortical_thickness_mean_mm,
                     "hba1c_percent": self.hba1c_percent,
                     "hs_crp_mg_l": self.hs_crp_mg_l,
+                    "total_cholesterol_mg_dl": self.total_cholesterol_mg_dl,
+                    "fasting_glucose_mg_dl": self.fasting_glucose_mg_dl,
                     "rnfl_um": self.rnfl_um,
                     "vessel_density_percent": self.vessel_density_percent,
+                    "gfaz_area_mm2": self.gfaz_area_mm2,
                     "apoe_e4_count": self.apoe_e4_count,
                     "ancestry_pc1": self.ancestry_pc1,
                 }
@@ -107,10 +125,16 @@ PRESET_PROFILES: dict[str, ParticipantProfile] = {
         executive_score=0.82,
         hippocampal_volume_mm3=7350,
         wmh_burden_ml=2.1,
+        entorhinal_thickness_mm=3.5,
+        ventricular_volume_mm3=30000.0,
+        cortical_thickness_mean_mm=2.6,
         hba1c_percent=5.4,
         hs_crp_mg_l=1.0,
+        total_cholesterol_mg_dl=185.0,
+        fasting_glucose_mg_dl=92.0,
         rnfl_um=96,
         vessel_density_percent=49.5,
+        gfaz_area_mm2=0.26,
         apoe_e4_count=0,
         ancestry_pc1=1.1,
     ),
@@ -126,10 +150,16 @@ PRESET_PROFILES: dict[str, ParticipantProfile] = {
         executive_score=-0.45,
         hippocampal_volume_mm3=None,
         wmh_burden_ml=None,
+        entorhinal_thickness_mm=None,
+        ventricular_volume_mm3=None,
+        cortical_thickness_mean_mm=None,
         hba1c_percent=6.2,
         hs_crp_mg_l=2.8,
+        total_cholesterol_mg_dl=210.0,
+        fasting_glucose_mg_dl=108.0,
         rnfl_um=87,
         vessel_density_percent=44.0,
+        gfaz_area_mm2=0.30,
         apoe_e4_count=None,
         ancestry_pc1=None,
     ),
@@ -145,10 +175,16 @@ PRESET_PROFILES: dict[str, ParticipantProfile] = {
         executive_score=-0.92,
         hippocampal_volume_mm3=5450,
         wmh_burden_ml=8.4,
+        entorhinal_thickness_mm=2.8,
+        ventricular_volume_mm3=42000.0,
+        cortical_thickness_mean_mm=2.3,
         hba1c_percent=6.5,
         hs_crp_mg_l=3.6,
+        total_cholesterol_mg_dl=235.0,
+        fasting_glucose_mg_dl=118.0,
         rnfl_um=80,
         vessel_density_percent=41.5,
+        gfaz_area_mm2=0.34,
         apoe_e4_count=1,
         ancestry_pc1=1.2,
     ),
@@ -165,9 +201,10 @@ class ParticipantForecast:
     twin_trajectories: pd.DataFrame
     warnings: tuple[str, ...]
     available_modalities: tuple[str, ...]
+    survival_curve: pd.DataFrame | None = None
 
 
-class DiscreteTimeRiskEnsemble:
+class _LegacyDiscreteTimeRiskEnsemble:
     """Bootstrap discrete-time hazard models with cumulative risk output."""
 
     def __init__(self, feature_columns: list[str], n_bootstrap: int = 12, seed: int = 42):
@@ -246,6 +283,100 @@ class DiscreteTimeRiskEnsemble:
         return np.clip(output, 0.0, 1.0)
 
 
+class GBMDiscreteTimeRiskEnsemble:
+    """Bootstrap ensemble of GBM discrete-time hazard models."""
+    
+    def __init__(self, feature_columns, n_bootstrap=12, seed=42):
+        self.feature_columns = list(feature_columns)
+        self.n_bootstrap = n_bootstrap
+        self.seed = seed
+        self.models = []
+
+    def _interval_frame(self, frame):
+        interval_rows: list[pd.DataFrame] = []
+        for year in range(1, 6):
+            interval_start = (year - 1) * 365.25
+            interval_end = year * 365.25
+            eligible = frame[frame["event_time_days"] > interval_start].copy()
+            if eligible.empty:
+                continue
+            eligible["interval_year"] = float(year)
+            eligible["interval_event"] = (
+                (eligible["event"] == 1) & (eligible["event_time_days"] <= interval_end)
+            ).astype(int)
+            interval_rows.append(eligible)
+        return pd.concat(interval_rows, ignore_index=True)
+
+    def fit(self, frame):
+        available = frame[self.feature_columns].notna().any(axis=1)
+        training = frame.loc[available].reset_index(drop=True)
+        if training.empty:
+            raise ValueError("No participants have features for this modality")
+        rng = np.random.default_rng(self.seed)
+        self.models = []
+        for i in range(self.n_bootstrap):
+            sampled = None
+            intervals = None
+            for _ in range(20):
+                positions = rng.integers(0, len(training), len(training))
+                sampled = training.iloc[positions].reset_index(drop=True)
+                intervals = self._interval_frame(sampled)
+                if intervals["interval_event"].nunique() == 2:
+                    break
+            if intervals is None or intervals["interval_event"].nunique() < 2:
+                intervals = self._interval_frame(training)
+            
+            try:
+                from models.classification.lightgbm_risk import GBMRiskClassifier
+                model = GBMRiskClassifier(
+                    feature_columns=self.feature_columns + ['interval_year'],
+                    n_estimators=150,
+                    learning_rate=0.08,
+                    max_depth=4,
+                    seed=self.seed + i * 37,
+                )
+                model.fit(intervals, target_col='interval_event')
+            except Exception:
+                model = Pipeline(
+                    steps=[
+                        ("imputer", SimpleImputer(strategy="median")),
+                        ("scaler", StandardScaler()),
+                        (
+                            "model",
+                            LogisticRegression(
+                                max_iter=1200,
+                                class_weight="balanced",
+                                random_state=self.seed + i,
+                            ),
+                        ),
+                    ]
+                )
+                model.fit(intervals[self.feature_columns + ["interval_year"]], intervals["interval_event"])
+            self.models.append(model)
+        return self
+
+    def predict_distribution(self, frame):
+        if not self.models:
+            raise RuntimeError("GBMDiscreteTimeRiskEnsemble must be fitted before prediction")
+        output = np.zeros((len(self.models), len(frame), len(HORIZONS)), dtype=float)
+        for model_index, model in enumerate(self.models):
+            survival = np.ones(len(frame), dtype=float)
+            horizon_position = 0
+            for year in range(1, 6):
+                interval_frame = frame[self.feature_columns].copy()
+                interval_frame["interval_year"] = float(year)
+                if hasattr(model, "predict_risk"):
+                    hazard = model.predict_risk(interval_frame)
+                else:
+                    hazard = model.predict_proba(interval_frame)[:, 1]
+                hazard = np.clip(hazard, 0.001, 0.95)
+                survival *= 1.0 - hazard
+                if year in HORIZONS:
+                    output[model_index, :, horizon_position] = 1.0 - survival
+                    horizon_position += 1
+        return np.clip(output, 0.0, 1.0)
+
+
 def _assign_splits(baseline: pd.DataFrame, seed: int) -> pd.DataFrame:
     rng = np.random.default_rng(seed + 101)
     rows = []
@@ -287,13 +418,21 @@ class DemoRuntime:
         self.validation = self.baseline[self.baseline["role"].isin(["public_validation", "india_validation", "external_validation"])].reset_index(drop=True)
         self._assert_split_safety()
 
-        self.risk_models: dict[str, DiscreteTimeRiskEnsemble] = {}
+        self.risk_models: dict[str, GBMDiscreteTimeRiskEnsemble] = {}
         for modality_index, (modality, features) in enumerate(MODALITY_FEATURES.items()):
-            self.risk_models[modality] = DiscreteTimeRiskEnsemble(
+            self.risk_models[modality] = GBMDiscreteTimeRiskEnsemble(
                 feature_columns=features,
                 n_bootstrap=n_bootstrap,
                 seed=self.seed + modality_index * 37,
             ).fit(self.train)
+
+        try:
+            from models.survival.rsf import RandomSurvivalForestModel
+            self.survival_model = RandomSurvivalForestModel(
+                feature_columns=ALL_MODEL_FEATURES
+            ).fit(self.train)
+        except Exception:
+            self.survival_model = None
 
         self.trajectory_model = self._fit_trajectory_model()
         self.twin_retriever = TwinLiteRetriever(ALL_MODEL_FEATURES).fit(self.train)
@@ -310,6 +449,49 @@ class DemoRuntime:
         self.ablation = self._build_ablation()
         self.missingness = self._build_missingness()
         self.quality_checks = self._build_quality_checks()
+        self.model_comparison = self._build_model_comparison()
+
+    def _build_model_comparison(self) -> pd.DataFrame:
+        baseline_models = {}
+        for modality_index, (modality, features) in enumerate(MODALITY_FEATURES.items()):
+            baseline_models[modality] = _LegacyDiscreteTimeRiskEnsemble(
+                feature_columns=features,
+                n_bootstrap=self.n_bootstrap,
+                seed=self.seed + modality_index * 37,
+            ).fit(self.train)
+        
+        def _risk_distribution_baseline(frame: pd.DataFrame) -> np.ndarray:
+            modality_distributions = {
+                modality: model.predict_distribution(frame)
+                for modality, model in baseline_models.items()
+            }
+            fused = np.full((self.n_bootstrap, len(frame), len(HORIZONS)), np.nan, dtype=float)
+            for bootstrap_index in range(self.n_bootstrap):
+                for horizon_index, _ in enumerate(HORIZONS):
+                    score_frame = pd.DataFrame(index=frame.index)
+                    for modality, distribution in modality_distributions.items():
+                        values = distribution[bootstrap_index, :, horizon_index].copy()
+                        values[~self._available_mask(frame, modality).to_numpy()] = np.nan
+                        score_frame[modality] = values
+                    fused[bootstrap_index, :, horizon_index] = weighted_score_fusion(
+                        score_frame, MODALITY_WEIGHTS
+                    ).to_numpy()
+            return fused
+
+        baseline_dist = _risk_distribution_baseline(self.validation)
+        baseline_median = np.nanmedian(baseline_dist, axis=0)
+        baseline_risk_3y = baseline_median[:, 1]
+        baseline_metrics = _safe_metrics(self.validation["event_by_3y"], baseline_risk_3y)
+        
+        gbm_dist, _ = self._risk_distribution(self.validation)
+        gbm_median = np.nanmedian(gbm_dist, axis=0)
+        gbm_risk_3y = gbm_median[:, 1]
+        gbm_metrics = _safe_metrics(self.validation["event_by_3y"], gbm_risk_3y)
+        
+        return pd.DataFrame([
+            {"model": "Baseline (Logistic)", **baseline_metrics},
+            {"model": "Upgraded (GBM)", **gbm_metrics},
+        ])
 
     def _assert_split_safety(self) -> None:
         train_ids = set(self.train["participant_id"])
@@ -613,6 +795,10 @@ class DemoRuntime:
             )
         drivers = pd.DataFrame(driver_rows).sort_values("relative_effect", key=lambda values: values.abs(), ascending=False)
 
+        survival_curve = None
+        if self.survival_model is not None:
+            survival_curve = self.survival_model.predict_survival(frame)
+
         twin_summary = twins[["participant_id", "cohort", "urban_rural", "similarity", "cognitive_score"]].copy()
         twin_summary = twin_summary.rename(columns={"cognitive_score": "baseline_cognition"})
         return ParticipantForecast(
@@ -624,7 +810,20 @@ class DemoRuntime:
             twin_trajectories=twin_trajectories,
             warnings=self._warnings(profile, frame),
             available_modalities=tuple(available_modalities),
+            survival_curve=survival_curve,
         )
+
+    def explain(self, profile: ParticipantProfile) -> pd.DataFrame:
+        """Return modality-level SHAP-style driver analysis."""
+        frame = profile.to_frame()
+        _, modality_distributions = self._risk_distribution(frame)
+        rows = []
+        for modality, values in modality_distributions.items():
+            if bool(self._available_mask(frame, modality).iloc[0]):
+                modality_risk = float(np.median(values[:, 0, 1]))
+                effect = MODALITY_WEIGHTS[modality] * (modality_risk - self.modality_reference[modality])
+                rows.append({"modality": modality, "shap_value": effect})
+        return pd.DataFrame(rows)
 
 
 def build_demo_runtime(

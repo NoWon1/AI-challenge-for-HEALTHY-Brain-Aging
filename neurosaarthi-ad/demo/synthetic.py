@@ -27,10 +27,16 @@ FEATURE_SPECS: dict[str, tuple[str, str]] = {
     "executive_score": ("cognition", "z-score"),
     "hippocampal_volume_mm3": ("mri", "mm3"),
     "wmh_burden_ml": ("mri", "mL"),
+    "entorhinal_thickness_mm": ("mri", "mm"),
+    "ventricular_volume_mm3": ("mri", "mm3"),
+    "cortical_thickness_mean_mm": ("mri", "mm"),
     "hba1c_percent": ("biochem", "%"),
     "hs_crp_mg_l": ("biochem", "mg/L"),
+    "total_cholesterol_mg_dl": ("biochem", "mg/dL"),
+    "fasting_glucose_mg_dl": ("biochem", "mg/dL"),
     "rnfl_um": ("oct", "um"),
     "vessel_density_percent": ("oct", "%"),
+    "gfaz_area_mm2": ("oct", "mm2"),
     "apoe_e4_count": ("genomics", "alleles"),
     "ancestry_pc1": ("genomics", "z-score"),
 }
@@ -41,10 +47,16 @@ SHORT_NAMES = {
     "executive_score": "exec_z",
     "hippocampal_volume_mm3": "hippo_vol",
     "wmh_burden_ml": "wmh",
+    "entorhinal_thickness_mm": "erc_thick",
+    "ventricular_volume_mm3": "vent_vol",
+    "cortical_thickness_mean_mm": "ctx_thick",
     "hba1c_percent": "hba1c",
     "hs_crp_mg_l": "hscrp",
+    "total_cholesterol_mg_dl": "tot_chol",
+    "fasting_glucose_mg_dl": "glucose",
     "rnfl_um": "rnfl",
     "vessel_density_percent": "vessel_density",
+    "gfaz_area_mm2": "gfaz",
     "apoe_e4_count": "apoe4",
     "ancestry_pc1": "pc1",
 }
@@ -199,8 +211,20 @@ def generate_demo_cohort(seed: int = 42, n_per_cohort: int = 120) -> DemoCohortB
             vessel_density = float(np.clip(48.5 - 1.2 * vulnerability + rng.normal(0, 2.0), 34.0, 58.0))
             memory_score = float(np.clip((baseline_cognition - 25.0) / 2.8 + rng.normal(0, 0.25), -3.0, 2.5))
             executive_score = float(np.clip((baseline_cognition - 25.0) / 3.1 + rng.normal(0, 0.3), -3.0, 2.5))
+            entorhinal_thickness = float(np.clip(3.6 - 0.12 * vulnerability - 0.008 * (age - 65) + rng.normal(0, 0.15), 1.5, 4.5))
+            ventricular_volume = float(np.clip(28000 + 3400 * vulnerability + 200 * (age - 65) + rng.normal(0, 3000), 12000, 65000))
+            cortical_thickness_mean = float(np.clip(2.65 - 0.04 * vulnerability - 0.003 * (age - 65) + rng.normal(0, 0.08), 1.8, 3.2))
+            total_cholesterol = float(np.clip(195 + 5 * vulnerability + rng.normal(0, 25), 110, 320))
+            fasting_glucose = float(np.clip(95 + 4 * vulnerability + 6 * rural_indicator + rng.normal(0, 12), 65, 200))
+            gfaz_area = float(np.clip(0.27 + 0.015 * vulnerability + rng.normal(0, 0.04), 0.1, 0.6))
 
-            logit_hazard = -2.75 + 0.72 * vulnerability + 0.18 * (25.0 - baseline_cognition) + 0.035 * wmh_burden
+            logit_hazard = (
+                -2.75 + 0.72 * vulnerability + 0.18 * (25.0 - baseline_cognition) + 0.035 * wmh_burden
+                + 0.025 * apoe_e4 * max(0, age - 65)
+                + 0.08 * max(0, hba1c - 5.7) * max(0, wmh_burden - 3.0)
+                - 0.15 * max(0, education - 14)
+                + 0.04 * max(0, 90 - rnfl)
+            )
             annual_hazard = float(np.clip(_sigmoid(logit_hazard), 0.018, 0.62))
             sampled_event_year = float(rng.geometric(annual_hazard) - rng.uniform(0.05, 0.65))
             event = int(sampled_event_year <= 5.0)
@@ -244,10 +268,16 @@ def generate_demo_cohort(seed: int = 42, n_per_cohort: int = 120) -> DemoCohortB
                     "executive_score": float(np.clip(executive_score + decline_rate * year_offset / 2.6 + rng.normal(0, 0.08), -4, 3)),
                     "hippocampal_volume_mm3": float(max(2800.0, hippocampal_volume - (32 + 35 * annual_hazard) * year_offset + rng.normal(0, 35))),
                     "wmh_burden_ml": float(max(0.1, wmh_burden + (0.13 + 0.18 * annual_hazard) * year_offset + rng.normal(0, 0.12))),
+                    "entorhinal_thickness_mm": float(max(1.0, entorhinal_thickness - (0.02 + 0.05 * annual_hazard) * year_offset + rng.normal(0, 0.05))),
+                    "ventricular_volume_mm3": float(min(70000, ventricular_volume + (400 + 800 * annual_hazard) * year_offset + rng.normal(0, 500))),
+                    "cortical_thickness_mean_mm": float(max(1.0, cortical_thickness_mean - (0.01 + 0.03 * annual_hazard) * year_offset + rng.normal(0, 0.03))),
                     "hba1c_percent": float(np.clip(hba1c + rng.normal(0, 0.08), 4.0, 10.0)),
                     "hs_crp_mg_l": float(np.clip(hs_crp * rng.lognormal(0, 0.08), 0.05, 15.0)),
+                    "total_cholesterol_mg_dl": float(np.clip(total_cholesterol + rng.normal(0, 5), 100, 350)),
+                    "fasting_glucose_mg_dl": float(np.clip(fasting_glucose + rng.normal(0, 3), 60, 220)),
                     "rnfl_um": float(np.clip(rnfl - 0.16 * year_offset + rng.normal(0, 0.4), 55, 115)),
                     "vessel_density_percent": float(np.clip(vessel_density - 0.07 * year_offset + rng.normal(0, 0.3), 30, 60)),
+                    "gfaz_area_mm2": float(np.clip(gfaz_area + 0.005 * year_offset + rng.normal(0, 0.01), 0.05, 0.7)),
                     "apoe_e4_count": float(apoe_e4),
                     "ancestry_pc1": ancestry_pc1,
                 }

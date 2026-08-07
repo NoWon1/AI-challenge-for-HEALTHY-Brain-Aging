@@ -5,22 +5,26 @@ import json
 from pathlib import Path
 
 # ── Import your demo runtime which trains the models on synthetic data ──
-from demo.runtime import NeuroSaarthiRuntime
+from demo.runtime import build_demo_runtime
 
 OUT_DIR = Path("hf_upload")
 OUT_DIR.mkdir(exist_ok=True)
 
 # 1. Build the runtime (trains all sub-models on synthetic data)
-runtime = NeuroSaarthiRuntime.build()
+runtime = build_demo_runtime()
 
-# 2. Save classification pipelines (one per horizon)
+# 2. Save classification pipelines (LightGBM)
 for horizon, pipeline in runtime.classifiers.items():
     joblib.dump(pipeline, OUT_DIR / f"classifier_{horizon}yr.joblib")
 
-# 3. Save the cognitive-trajectory regressor
+# 3. Save survival models (RSF / CoxBoost)
+for model_name, model in getattr(runtime, 'survival_models', {}).items():
+    joblib.dump(model, OUT_DIR / f"survival_{model_name}.joblib")
+
+# 4. Save the cognitive-trajectory regressor
 joblib.dump(runtime.progression, OUT_DIR / f"progression_regressor.joblib")
 
-# 4. Save the twin-lite retrieval index
+# 5. Save the twin-lite retrieval index
 joblib.dump(runtime.twinlite, OUT_DIR / f"twinlite_retriever.joblib")
 
 # 5. Save config / feature metadata

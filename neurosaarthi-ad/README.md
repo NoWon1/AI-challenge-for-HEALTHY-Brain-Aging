@@ -1,4 +1,4 @@
-# NeuroSaarthi-AD
+# NeuroSaarthi-AD v0.2.0
 
 NeuroSaarthi-AD is a judge-facing research prototype for the CBR Healthy Brain Aging AI Challenge. It combines a secure, harmonised, longitudinal multimodal workflow with an interactive Streamlit studio for progression risk, cognitive trajectories, modality-level drivers, and digital twin lite retrieval.
 
@@ -10,7 +10,7 @@ The prototype is intentionally feature-first rather than raw-image-first. Its lo
 cd neurosaarthi-ad
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev,dashboard]"
+python -m pip install -e ".[advanced,dev,dashboard]"
 python -m pytest
 streamlit run dashboards\streamlit_app.py
 ```
@@ -22,6 +22,11 @@ The app opens on an editable synthetic participant and includes three views:
 - **Harmonisation audit** — source mappings, unit conversions, missingness, provenance, and leakage safeguards.
 
 This is a research demonstration only. It is not intended for diagnosis, screening, treatment decisions, or claims about real ADNI, NACC, AIBL, OASIS, UK Biobank, TLSA, or SANSCOG performance.
+
+## New in v0.2.0
+- **Advanced Modeling**: LightGBM classifiers, Random Survival Forests, and CoxBoost via `scikit-survival`.
+- **Harmonization**: ComBat batch correction for multi-cohort data.
+- **Explainability**: SHAP value integration for modality drivers.
 
 ## Project Shape
 

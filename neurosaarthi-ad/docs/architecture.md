@@ -3,10 +3,10 @@
 NeuroSaarthi-AD has five layers:
 
 1. Secure cohort ingestion into the common data model.
-2. Train-only harmonisation and leakage checks.
+2. Train-only ComBat batch correction harmonisation and leakage checks.
 3. Modality feature blocks for cognition, MRI, OCT/OCTA, biochemistry, and genomics.
-4. Classification, survival, progression, fusion, and twin-lite models.
-5. Dashboard and reports for calibration, uncertainty, subgroup evaluation, and explanations.
+4. Upgraded v0.2 Models: LightGBM classification, scikit-survival (RSF/CoxBoost), mixed-effects progression, late fusion, and twin-lite.
+5. Dashboard and reports for calibration, SHAP explainability, uncertainty, subgroup evaluation, and explanations.
 
 ## Local demonstration runtime
 
