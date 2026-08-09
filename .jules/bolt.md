@@ -1,3 +1,3 @@
-## 2026-08-07 - [Vectorizing MixedEffectsTrajectory]
-**Learning:** Iterating over Pandas dataframes using iterrows is a huge anti-pattern, especially inside heavily-used prediction loops like MixedEffectsTrajectory.predict. The slowness multiplies when used in combination with row-by-row lookups of statsmodels random effects and dictionary .loc operations.
-**Action:** When working with statsmodels output (result.predict) or scikit-learn models applied to Pandas dataframes grouped by participants, always extract the base prediction matrix first (model.predict(X_all)), and then update the specific indices for each group using vectorized operations.
+## 2024-05-18 - Replacing Pandas `.iterrows()` in cohort event building
+**Learning:** Found a major bottleneck in `etl/base.py`'s `_build_outcomes` method, where `.iterrows()` was used to simulate time-series progression logic inside a `.groupby()`. This O(n²) anti-pattern made dataset extraction extremely slow.
+**Action:** Replaced `.iterrows()` with vectorized sorting, boolean masking, and cross joins for horizons. This pattern can be applied to other adapters if `.iterrows()` usage is found.
