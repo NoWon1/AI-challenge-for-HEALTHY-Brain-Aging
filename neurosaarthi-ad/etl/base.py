@@ -31,44 +31,40 @@ class CohortAdapter(ABC):
 
     def _build_outcomes(self, raw: pd.DataFrame, visits: pd.DataFrame) -> pd.DataFrame:
         """Build standard progression outcomes from visits."""
-        rows = []
         if visits.empty:
             return pd.DataFrame()
 
-        for pid, group in visits.groupby('participant_id'):
-            group = group.sort_values('baseline_days')
-            baseline_dx = group.iloc[0]['diagnosis'] if len(group) > 0 else 'unknown'
-            baseline_visit = f"{pid}-V0"
+        # ⚡ Bolt Optimization: Replace iterrows with vectorized grouping
+        v = visits.sort_values(['participant_id', 'baseline_days'])
 
-            conversion_days = None
-            for _, visit in group.iterrows():
-                if baseline_dx == 'cognitively_unimpaired' and visit['diagnosis'] in ('mci', 'dementia'):
-                    conversion_days = visit['baseline_days']
-                    break
-                elif baseline_dx == 'mci' and visit['diagnosis'] == 'dementia':
-                    conversion_days = visit['baseline_days']
-                    break
+        first_v = v.groupby('participant_id', as_index=False).first()
+        last_v = v.groupby('participant_id', as_index=False).last()
 
-            follow_up_days = group.iloc[-1]['baseline_days']
+        v = v.merge(first_v[['participant_id', 'diagnosis']].rename(columns={'diagnosis': 'base_dx'}), on='participant_id')
 
-            if conversion_days is not None:
-                event_time_days = conversion_days
-            else:
-                event_time_days = max(follow_up_days, 1)
+        conv_mask = ((v['base_dx'] == 'cognitively_unimpaired') & v['diagnosis'].isin(['mci', 'dementia'])) | \
+                    ((v['base_dx'] == 'mci') & (v['diagnosis'] == 'dementia'))
 
-            for horizon in (1, 3, 5):
-                horizon_days = int(round(horizon * 365.25))
-                event = 1 if (conversion_days is not None and event_time_days <= horizon_days) else 0
-                rows.append({
-                    'outcome_id': f"{pid}-risk-{horizon}y",
-                    'participant_id': pid,
-                    'anchor_visit_id': baseline_visit,
-                    'endpoint': f'incident_progression_{horizon}y',
-                    'horizon_days': horizon_days,
-                    'event': event,
-                    'event_time_days': event_time_days,
-                    'future_score': np.nan,
-                    'censoring_reason': 'study_end' if event == 0 else '',
-                })
+        first_conv = v[conv_mask].groupby('participant_id')['baseline_days'].first()
 
-        return pd.DataFrame(rows).sort_values(['participant_id', 'horizon_days']).reset_index(drop=True)
+        df = first_v[['participant_id']].copy()
+        df['conversion_days'] = df['participant_id'].map(first_conv)
+        df['follow_up_days'] = df['participant_id'].map(last_v.set_index('participant_id')['baseline_days'])
+
+        df['event_time_days'] = df['conversion_days'].combine_first(df['follow_up_days'].clip(lower=1)).astype(int)
+        df['anchor_visit_id'] = df['participant_id'] + '-V0'
+
+        dfs = []
+        for horizon in (1, 3, 5):
+            horizon_days = int(round(horizon * 365.25))
+            h_df = df.copy()
+            h_df['outcome_id'] = h_df['participant_id'] + f'-risk-{horizon}y'
+            h_df['endpoint'] = f'incident_progression_{horizon}y'
+            h_df['horizon_days'] = horizon_days
+            h_df['event'] = (h_df['conversion_days'].notna() & (h_df['event_time_days'] <= horizon_days)).astype(int)
+            h_df['future_score'] = np.nan
+            h_df['censoring_reason'] = np.where(h_df['event'] == 0, 'study_end', '')
+            dfs.append(h_df)
+
+        res = pd.concat(dfs)[['outcome_id', 'participant_id', 'anchor_visit_id', 'endpoint', 'horizon_days', 'event', 'event_time_days', 'future_score', 'censoring_reason']]
+        return res.sort_values(['participant_id', 'horizon_days']).reset_index(drop=True)
