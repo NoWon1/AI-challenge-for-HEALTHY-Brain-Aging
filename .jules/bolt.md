@@ -4,3 +4,7 @@
 ## 2023-10-25 - [Vectorizing CohortAdapter Outcomes]
 **Learning:** Using `.iterrows()` combined with nested loops over `.groupby()` to calculate event horizons is a severe O(N²) bottleneck when processing tens of thousands of visits across cohort adapters (AIBL, ADNI, etc).
 **Action:** Replace `.iterrows()` with fully vectorized operations for longitudinal event logic. Use `.groupby().first()`, `.merge()`, and boolean masks to locate events, and `.combine_first()` to fall back to follow-up times when events are absent.
+
+## 2025-02-18 - ETL Anti-Pattern
+**Learning:** Codebase Anti-Pattern/Convention: Avoid using Pandas `.iterrows()` in the ETL adapters (e.g., `etl/base.py`, cohort adapters). Iterating over DataFrames is extremely slow in python compared to utilizing numpy underneath.
+**Action:** Replace iteration with idiomatic, vectorized Pandas operations (like `.merge()`, `combine_first()`, and boolean masking) to prevent severe performance bottlenecks.
