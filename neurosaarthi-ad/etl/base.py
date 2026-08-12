@@ -34,32 +34,37 @@ class CohortAdapter(ABC):
         if visits.empty:
             return pd.DataFrame()
 
-        # ⚡ Bolt: Vectorized progression outcome calculation avoids slow .iterrows() loop
+        # ⚡ Bolt Optimization: Replace iterrows with vectorized grouping
         v = visits.sort_values(['participant_id', 'baseline_days'])
-        first_visits = v.groupby('participant_id', as_index=False).first()
-        last_visits = v.groupby('participant_id', as_index=False).last()
 
-        v = v.merge(first_visits[['participant_id', 'diagnosis']], on='participant_id', suffixes=('', '_base'))
+        first_v = v.groupby('participant_id', as_index=False).first()
+        last_v = v.groupby('participant_id', as_index=False).last()
 
-        is_conv = (((v['diagnosis_base'] == 'cognitively_unimpaired') & v['diagnosis'].isin(['mci', 'dementia'])) |
-                   ((v['diagnosis_base'] == 'mci') & (v['diagnosis'] == 'dementia')))
+        v = v.merge(first_v[['participant_id', 'diagnosis']].rename(columns={'diagnosis': 'base_dx'}), on='participant_id')
 
-        conv_days = v[is_conv].groupby('participant_id')['baseline_days'].first()
+        conv_mask = ((v['base_dx'] == 'cognitively_unimpaired') & v['diagnosis'].isin(['mci', 'dementia'])) | \
+                    ((v['base_dx'] == 'mci') & (v['diagnosis'] == 'dementia'))
 
-        summary = pd.DataFrame({'participant_id': first_visits['participant_id']}).set_index('participant_id')
-        summary['follow_up'] = last_visits.set_index('participant_id')['baseline_days']
-        summary['conv'] = conv_days
-        summary['event_time_days'] = summary['conv'].combine_first(summary['follow_up'].clip(lower=1))
+        first_conv = v[conv_mask].groupby('participant_id')['baseline_days'].first()
 
-        horizons = pd.DataFrame({'horizon_years': [1, 3, 5], 'horizon_days': [365, 1096, 1826]}) # int(round(horizon * 365.25))
-        outcomes = summary.reset_index().merge(horizons, how='cross')
+        df = first_v[['participant_id']].copy()
+        df['conversion_days'] = df['participant_id'].map(first_conv)
+        df['follow_up_days'] = df['participant_id'].map(last_v.set_index('participant_id')['baseline_days'])
 
-        outcomes['outcome_id'] = outcomes['participant_id'] + "-risk-" + outcomes['horizon_years'].astype(str) + "y"
-        outcomes['anchor_visit_id'] = outcomes['participant_id'] + "-V0"
-        outcomes['endpoint'] = "incident_progression_" + outcomes['horizon_years'].astype(str) + "y"
-        outcomes['event'] = (outcomes['conv'].notna() & (outcomes['event_time_days'] <= outcomes['horizon_days'])).astype(int)
-        outcomes['future_score'] = np.nan
-        outcomes['censoring_reason'] = np.where(outcomes['event'] == 0, 'study_end', '')
-        cols = ['outcome_id', 'participant_id', 'anchor_visit_id', 'endpoint', 'horizon_days', 'event', 'event_time_days', 'future_score', 'censoring_reason']
-        return outcomes[cols].sort_values(['participant_id', 'horizon_days']).reset_index(drop=True)
-        return outcomes[cols].sort_values(['participant_id', 'horizon_days']).reset_index(drop=True)
+        df['event_time_days'] = df['conversion_days'].combine_first(df['follow_up_days'].clip(lower=1)).astype(int)
+        df['anchor_visit_id'] = df['participant_id'] + '-V0'
+
+        dfs = []
+        for horizon in (1, 3, 5):
+            horizon_days = int(round(horizon * 365.25))
+            h_df = df.copy()
+            h_df['outcome_id'] = h_df['participant_id'] + f'-risk-{horizon}y'
+            h_df['endpoint'] = f'incident_progression_{horizon}y'
+            h_df['horizon_days'] = horizon_days
+            h_df['event'] = (h_df['conversion_days'].notna() & (h_df['event_time_days'] <= horizon_days)).astype(int)
+            h_df['future_score'] = np.nan
+            h_df['censoring_reason'] = np.where(h_df['event'] == 0, 'study_end', '')
+            dfs.append(h_df)
+
+        res = pd.concat(dfs)[['outcome_id', 'participant_id', 'anchor_visit_id', 'endpoint', 'horizon_days', 'event', 'event_time_days', 'future_score', 'censoring_reason']]
+        return res.sort_values(['participant_id', 'horizon_days']).reset_index(drop=True)
