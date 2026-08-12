@@ -31,44 +31,35 @@ class CohortAdapter(ABC):
 
     def _build_outcomes(self, raw: pd.DataFrame, visits: pd.DataFrame) -> pd.DataFrame:
         """Build standard progression outcomes from visits."""
-        rows = []
         if visits.empty:
             return pd.DataFrame()
 
-        for pid, group in visits.groupby('participant_id'):
-            group = group.sort_values('baseline_days')
-            baseline_dx = group.iloc[0]['diagnosis'] if len(group) > 0 else 'unknown'
-            baseline_visit = f"{pid}-V0"
+        # ⚡ Bolt: Vectorized progression outcome calculation avoids slow .iterrows() loop
+        v = visits.sort_values(['participant_id', 'baseline_days'])
+        first_visits = v.groupby('participant_id', as_index=False).first()
+        last_visits = v.groupby('participant_id', as_index=False).last()
 
-            conversion_days = None
-            for _, visit in group.iterrows():
-                if baseline_dx == 'cognitively_unimpaired' and visit['diagnosis'] in ('mci', 'dementia'):
-                    conversion_days = visit['baseline_days']
-                    break
-                elif baseline_dx == 'mci' and visit['diagnosis'] == 'dementia':
-                    conversion_days = visit['baseline_days']
-                    break
+        v = v.merge(first_visits[['participant_id', 'diagnosis']], on='participant_id', suffixes=('', '_base'))
 
-            follow_up_days = group.iloc[-1]['baseline_days']
+        is_conv = (((v['diagnosis_base'] == 'cognitively_unimpaired') & v['diagnosis'].isin(['mci', 'dementia'])) |
+                   ((v['diagnosis_base'] == 'mci') & (v['diagnosis'] == 'dementia')))
 
-            if conversion_days is not None:
-                event_time_days = conversion_days
-            else:
-                event_time_days = max(follow_up_days, 1)
+        conv_days = v[is_conv].groupby('participant_id')['baseline_days'].first()
 
-            for horizon in (1, 3, 5):
-                horizon_days = int(round(horizon * 365.25))
-                event = 1 if (conversion_days is not None and event_time_days <= horizon_days) else 0
-                rows.append({
-                    'outcome_id': f"{pid}-risk-{horizon}y",
-                    'participant_id': pid,
-                    'anchor_visit_id': baseline_visit,
-                    'endpoint': f'incident_progression_{horizon}y',
-                    'horizon_days': horizon_days,
-                    'event': event,
-                    'event_time_days': event_time_days,
-                    'future_score': np.nan,
-                    'censoring_reason': 'study_end' if event == 0 else '',
-                })
+        summary = pd.DataFrame({'participant_id': first_visits['participant_id']}).set_index('participant_id')
+        summary['follow_up'] = last_visits.set_index('participant_id')['baseline_days']
+        summary['conv'] = conv_days
+        summary['event_time_days'] = summary['conv'].combine_first(summary['follow_up'].clip(lower=1))
 
-        return pd.DataFrame(rows).sort_values(['participant_id', 'horizon_days']).reset_index(drop=True)
+        horizons = pd.DataFrame({'horizon_years': [1, 3, 5], 'horizon_days': [365, 1096, 1826]}) # int(round(horizon * 365.25))
+        outcomes = summary.reset_index().merge(horizons, how='cross')
+
+        outcomes['outcome_id'] = outcomes['participant_id'] + "-risk-" + outcomes['horizon_years'].astype(str) + "y"
+        outcomes['anchor_visit_id'] = outcomes['participant_id'] + "-V0"
+        outcomes['endpoint'] = "incident_progression_" + outcomes['horizon_years'].astype(str) + "y"
+        outcomes['event'] = (outcomes['conv'].notna() & (outcomes['event_time_days'] <= outcomes['horizon_days'])).astype(int)
+        outcomes['future_score'] = np.nan
+        outcomes['censoring_reason'] = np.where(outcomes['event'] == 0, 'study_end', '')
+
+        cols = ['outcome_id', 'participant_id', 'anchor_visit_id', 'endpoint', 'horizon_days', 'event', 'event_time_days', 'future_score', 'censoring_reason']
+        return outcomes[cols].sort_values(['participant_id', 'horizon_days']).reset_index(drop=True)
