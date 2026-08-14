@@ -1,0 +1,22 @@
+diff --git a/neurosaarthi-ad/dashboards/streamlit_app.py b/neurosaarthi-ad/dashboards/streamlit_app.py
+index a2021c3..3a2e1d7 100644
+--- a/neurosaarthi-ad/dashboards/streamlit_app.py
++++ b/neurosaarthi-ad/dashboards/streamlit_app.py
+@@ -5,6 +5,7 @@ from __future__ import annotations
+
+ import sys
+ from pathlib import Path
++import html
+
+ PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ if str(PROJECT_ROOT) not in sys.path:
+@@ -224,7 +225,7 @@ def _participant_view(runtime, forecast) -> None:
+ def _participant_view(runtime, forecast) -> None:
+     st.markdown("## Participant progression studio")
+     st.markdown(
+-        f"<p class='ns-section-note'>Fictional ID <b>{forecast.profile.participant_id}</b> · {forecast.profile.label} · "
+-        f"{len(forecast.available_modalities)} of 5 modality groups available</p>",
++        f"<p class='ns-section-note'>Fictional ID <b>{html.escape(str(forecast.profile.participant_id))}</b> · {html.escape(str(forecast.profile.label))} · "
++        f"{len(forecast.available_modalities)} of 5 modality groups available</p>",
+         unsafe_allow_html=True,
+     )
