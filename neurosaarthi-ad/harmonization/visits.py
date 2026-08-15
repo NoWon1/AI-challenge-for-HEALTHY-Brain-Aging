@@ -16,7 +16,7 @@ def add_baseline_offsets(visits: pd.DataFrame, participant_col: str = "participa
 
 
 def require_monotonic_visits(visits: pd.DataFrame, participant_col: str = "participant_id", order_col: str = "visit_index") -> None:
-    for participant_id, group in visits.sort_values([participant_col, order_col]).groupby(participant_col):
+    for participant_id, group in visits.groupby(participant_col, sort=False):
         values = group[order_col].tolist()
         if values != sorted(values):
             raise ValueError(f"Visits are not monotonic for participant {participant_id}")

@@ -143,25 +143,36 @@ class SHAPExplainer:
             DataFrame with top-k feature names and their SHAP values.
         """
         shap_df = self.explain(frame)
-        results = []
         
-        for idx, row in shap_df.iterrows():
-            # Sort by absolute SHAP value
-            sorted_features = row.abs().sort_values(ascending=False).head(k)
-            top_feats = sorted_features.index.tolist()
-            top_vals = row[top_feats].tolist()
+        # ⚡ Bolt: Vectorized top-K extraction avoids slow .iterrows() loop
+        vals = shap_df.values
+        abs_vals = np.abs(vals)
+        k_actual = min(k, vals.shape[1])
+
+        if k_actual > 0:
+            # Get the indices of the top k elements along each row
+            top_k_idx = np.argpartition(-abs_vals, kth=k_actual-1, axis=1)[:, :k_actual]
             
-            row_dict = {}
-            for i in range(k):
-                if i < len(top_feats):
-                    row_dict[f"feature_{i+1}"] = top_feats[i]
-                    row_dict[f"value_{i+1}"] = top_vals[i]
-                else:
-                    row_dict[f"feature_{i+1}"] = None
-                    row_dict[f"value_{i+1}"] = None
-            results.append(row_dict)
+            # Sort the top k elements
+            row_indices = np.arange(vals.shape[0])[:, None]
+            top_k_abs_vals = abs_vals[row_indices, top_k_idx]
+            sorted_top_k_order = np.argsort(-top_k_abs_vals, axis=1)
+            sorted_top_k_idx = top_k_idx[row_indices, sorted_top_k_order]
             
-        return pd.DataFrame(results, index=frame.index)
+            features = np.array(shap_df.columns)
+            top_features = features[sorted_top_k_idx]
+            top_values = vals[row_indices, sorted_top_k_idx]
+
+        result_dict = {}
+        for i in range(k):
+            if i < k_actual:
+                result_dict[f"feature_{i+1}"] = top_features[:, i]
+                result_dict[f"value_{i+1}"] = top_values[:, i]
+            else:
+                result_dict[f"feature_{i+1}"] = None
+                result_dict[f"value_{i+1}"] = None
+
+        return pd.DataFrame(result_dict, index=frame.index)
 
     def global_importance(self) -> pd.DataFrame:
         """

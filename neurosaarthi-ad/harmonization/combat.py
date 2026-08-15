@@ -6,8 +6,11 @@ validation leakage. Biological covariates (age, sex) are preserved.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
+import logging
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class TrainOnlyComBat:
@@ -52,7 +55,7 @@ class TrainOnlyComBat:
                     beta = np.linalg.lstsq(X.values, y.values, rcond=None)[0]
                     residuals[col] = y - X.values @ beta
                 except np.linalg.LinAlgError:
-                    pass
+                    logger.warning("LinAlgError during residualisation for column %s. Skipping residualisation for this feature.", col)
         
         # Batch-specific location and scale from residuals
         for batch, group in frame.groupby(self.batch_col, sort=False):
