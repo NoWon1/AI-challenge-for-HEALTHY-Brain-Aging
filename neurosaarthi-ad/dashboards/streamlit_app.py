@@ -151,11 +151,15 @@ def _profile_controls() -> ParticipantProfile:
 
 
 def _risk_card(row: pd.Series) -> str:
+    horizon = html.escape(str(int(row['horizon'])))
+    risk = html.escape(f"{row['risk']:.0%}")
+    lower = html.escape(f"{row['lower']:.0%}")
+    upper = html.escape(f"{row['upper']:.0%}")
     return f"""
     <div class="ns-risk">
-      <div class="label">{int(row['horizon'])}-year progression risk</div>
-      <div class="value">{row['risk']:.0%}</div>
-      <div class="interval">80% synthetic interval · {row['lower']:.0%}–{row['upper']:.0%}</div>
+      <div class="label">{horizon}-year progression risk</div>
+      <div class="value">{risk}</div>
+      <div class="interval">80% synthetic interval · {lower}–{upper}</div>
     </div>
     """
 
