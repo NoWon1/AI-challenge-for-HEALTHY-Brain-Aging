@@ -13,4 +13,3 @@ def test_subject_split_has_no_participant_overlap():
     )
     train, test = subject_split(frame, test_size=0.25, seed=7)
     assert_disjoint_participants(set(train["participant_id"]), set(test["participant_id"]))
-

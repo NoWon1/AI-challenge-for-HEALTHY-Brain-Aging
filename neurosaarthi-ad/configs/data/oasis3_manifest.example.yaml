@@ -1,0 +1,18 @@
+# Paths are resolved relative to this file. Copy this file into the approved
+# local data environment and adapt the explicit release-specific mappings.
+manifest_path: ../../../data/oasis3/session_manifest.csv
+columns:
+  participant_id: source_subject_id
+  visit_id: source_session_id
+  age_at_visit: age_years
+  time_from_baseline_days: days_from_baseline
+  image_uri: local_t1_nifti
+  sequence: sequence_name
+  site: site
+  sex: sex
+  education_years: education_years
+  diagnosis: source_diagnostic_state
+  cognitive_instrument: cognitive_instrument
+  cognitive_score: cognitive_raw_score
+  scanner_vendor: scanner_vendor
+  field_strength_t: field_strength_t

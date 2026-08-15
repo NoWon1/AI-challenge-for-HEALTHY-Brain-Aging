@@ -13,7 +13,9 @@ def runtime():
 def test_global_tlsa_and_sanscog_roles_are_isolated(runtime):
     assert set(runtime.train["role"]) == {"global_train", "tlsa_adaptation"}
     assert "SANSCOG" not in set(runtime.train["cohort"])
-    assert set(runtime.baseline.loc[runtime.baseline["role"] == "external_validation", "cohort"]) == {"SANSCOG"}
+    assert set(runtime.baseline.loc[runtime.baseline["role"] == "external_validation", "cohort"]) == {
+        "SANSCOG"
+    }
     assert set(runtime.train["participant_id"]).isdisjoint(set(runtime.validation["participant_id"]))
 
 
@@ -39,10 +41,16 @@ def test_missing_modalities_are_renormalised_instead_of_failing(runtime):
         base,
         hippocampal_volume_mm3=None,
         wmh_burden_ml=None,
+        entorhinal_thickness_mm=None,
+        ventricular_volume_mm3=None,
+        cortical_thickness_mean_mm=None,
         hba1c_percent=None,
         hs_crp_mg_l=None,
+        total_cholesterol_mg_dl=None,
+        fasting_glucose_mg_dl=None,
         rnfl_um=None,
         vessel_density_percent=None,
+        gfaz_area_mm2=None,
         apoe_e4_count=None,
         ancestry_pc1=None,
     )

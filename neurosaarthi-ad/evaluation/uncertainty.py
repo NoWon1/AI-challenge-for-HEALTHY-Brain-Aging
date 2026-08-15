@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -50,7 +50,9 @@ class BootstrapCI:
 
         return point_estimate, lower, upper
 
-    def compute_metric_ci(self, y_true: pd.Series, y_score: pd.Series, metric_name: str = "auroc") -> dict[str, float]:
+    def compute_metric_ci(
+        self, y_true: pd.Series, y_score: pd.Series, metric_name: str = "auroc"
+    ) -> dict[str, float]:
         """Compute CI for a specific metric.
 
         Args:
@@ -61,6 +63,7 @@ class BootstrapCI:
         Returns:
             Dictionary containing point, lower, and upper values.
         """
+
         def metric_fn(yt: np.ndarray, ys: np.ndarray) -> float:
             if binary_metrics is None:
                 raise ImportError("binary_metrics could not be imported.")
@@ -87,12 +90,19 @@ class ConformalPredictor:
         """
         if isinstance(residuals, pd.Series):
             residuals = residuals.to_numpy()
+        residuals = np.abs(np.asarray(residuals, dtype=float))
+        if not 0 < alpha < 1:
+            raise ValueError("alpha must be between 0 and 1")
+        if residuals.ndim != 1 or residuals.size == 0 or not np.isfinite(residuals).all():
+            raise ValueError("residuals must be a non-empty finite one-dimensional array")
         n = len(residuals)
         q_level = np.ceil((n + 1) * (1 - alpha)) / n
         q_level = min(max(q_level, 0.0), 1.0)
         return float(np.quantile(residuals, q_level, method="higher"))
 
-    def predict_interval(self, predictions: np.ndarray | pd.Series, width: float) -> tuple[np.ndarray, np.ndarray]:
+    def predict_interval(
+        self, predictions: np.ndarray | pd.Series, width: float
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Compute prediction bands given base predictions and conformal width.
 
         Args:
@@ -106,7 +116,9 @@ class ConformalPredictor:
             predictions = predictions.to_numpy()
         return predictions - width, predictions + width
 
-    def coverage(self, y_true: np.ndarray | pd.Series, lower: np.ndarray | pd.Series, upper: np.ndarray | pd.Series) -> float:
+    def coverage(
+        self, y_true: np.ndarray | pd.Series, lower: np.ndarray | pd.Series, upper: np.ndarray | pd.Series
+    ) -> float:
         """Compute empirical coverage fraction.
 
         Args:
@@ -132,7 +144,9 @@ class ConformalPredictor:
 class ReliabilityDiagram:
     """Utility for computing reliability diagrams and calibration metrics."""
 
-    def compute(self, y_true: np.ndarray | pd.Series, y_pred: np.ndarray | pd.Series, n_bins: int = 10) -> pd.DataFrame:
+    def compute(
+        self, y_true: np.ndarray | pd.Series, y_pred: np.ndarray | pd.Series, n_bins: int = 10
+    ) -> pd.DataFrame:
         """Compute reliability diagram metrics.
 
         Args:
@@ -170,12 +184,14 @@ class ReliabilityDiagram:
                 pred_rate = np.nan
 
             midpoint = (bins[i] + bins[i + 1]) / 2
-            results.append({
-                "bin_midpoint": midpoint,
-                "observed_rate": obs_rate,
-                "predicted_rate": pred_rate,
-                "count": count,
-            })
+            results.append(
+                {
+                    "bin_midpoint": midpoint,
+                    "observed_rate": obs_rate,
+                    "predicted_rate": pred_rate,
+                    "count": count,
+                }
+            )
 
         df = pd.DataFrame(results)
         df["ece"] = ece
@@ -183,8 +199,10 @@ class ReliabilityDiagram:
         return df
 
 
-def ood_score(query_features: np.ndarray | pd.DataFrame, training_features: np.ndarray | pd.DataFrame) -> np.ndarray:
-    """Compute out-of-distribution score using Mahalanobis distance.
+def ood_score(
+    query_features: np.ndarray | pd.DataFrame, training_features: np.ndarray | pd.DataFrame
+) -> np.ndarray:
+    """Compute dimension-normalised Mahalanobis out-of-distribution scores.
 
     Args:
         query_features: Features for the query samples.
@@ -198,6 +216,15 @@ def ood_score(query_features: np.ndarray | pd.DataFrame, training_features: np.n
     if isinstance(training_features, pd.DataFrame):
         training_features = training_features.to_numpy()
 
+    query_features = np.asarray(query_features, dtype=float)
+    training_features = np.asarray(training_features, dtype=float)
+    if query_features.ndim != 2 or training_features.ndim != 2:
+        raise ValueError("query_features and training_features must be two-dimensional")
+    if query_features.shape[1] != training_features.shape[1] or training_features.shape[0] < 2:
+        raise ValueError("Feature dimensions must match and training_features needs at least two rows")
+    if not np.isfinite(query_features).all() or not np.isfinite(training_features).all():
+        raise ValueError("OOD features must be finite")
+
     mean = np.mean(training_features, axis=0)
     cov = np.cov(training_features, rowvar=False)
 
@@ -207,5 +234,8 @@ def ood_score(query_features: np.ndarray | pd.DataFrame, training_features: np.n
         inv_cov = np.linalg.pinv(cov)
 
     diff = query_features - mean
-    distances = np.sqrt(np.sum(np.dot(diff, inv_cov) * diff, axis=1))
+    # Dimension normalisation makes scores comparable across differently sized
+    # modality blocks. Any alert threshold must still be calibrated on held-out
+    # in-distribution data; 1.0 is not a universal clinical cutoff.
+    distances = np.sqrt(np.sum(np.dot(diff, inv_cov) * diff, axis=1)) / np.sqrt(training_features.shape[1])
     return distances

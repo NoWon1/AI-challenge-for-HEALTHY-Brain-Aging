@@ -1,0 +1,14 @@
+feature_table: ../../../derivatives/oasis3/morphometry_features.csv
+participant_column: participant_id_internal
+age_column: age_at_visit
+feature_columns:
+  - total_hippocampal_volume_mm3
+  - ventricular_volume_mm3
+  - normalized_hippocampal_volume
+  - normalized_ventricular_volume
+  - sex_encoded
+  - education_years
+test_size: 0.20
+calibration_size: 0.20
+seed: 42
+aggregate_report: ../../../reports/brain_age/aggregate_metrics.json

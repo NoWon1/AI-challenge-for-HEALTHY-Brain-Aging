@@ -20,4 +20,3 @@ def test_future_feature_guard_raises():
         assert "after the prediction anchor" in str(exc)
     else:
         raise AssertionError("Expected leakage guard to raise")
-

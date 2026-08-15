@@ -1,0 +1,14 @@
+services:
+  cli:
+    build:
+      context: .
+    image: neurosaarthi-ad:0.3.0
+    network_mode: none
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    command: ["--version"]

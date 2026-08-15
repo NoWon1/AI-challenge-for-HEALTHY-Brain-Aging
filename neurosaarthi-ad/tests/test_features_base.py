@@ -1,5 +1,7 @@
 import pandas as pd
-from features.base import pivot_modality_features, add_missingness_indicators
+
+from features.base import pivot_modality_features
+
 
 def test_pivot_modality_features():
     data = {
@@ -7,7 +9,7 @@ def test_pivot_modality_features():
         "participant_id": ["P1", "P1", "P2", "P1", "P2"],
         "visit_id": ["V1", "V1", "V1", "V1", "V2"],
         "feature_name": ["vol", "thk", "vol", "suvr", "suvr"],
-        "value": [1.5, 2.0, 1.6, 1.2, 1.1]
+        "value": [1.5, 2.0, 1.6, 1.2, 1.1],
     }
     df = pd.DataFrame(data)
 

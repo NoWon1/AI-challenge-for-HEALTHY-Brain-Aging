@@ -1,0 +1,5 @@
+# Replace these values with the version-pinned bundle's documented label map.
+left_hippocampus: [1]
+right_hippocampus: [2]
+ventricles: [3]
+brain_tissue: []

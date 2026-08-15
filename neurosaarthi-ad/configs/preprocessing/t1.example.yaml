@@ -1,0 +1,10 @@
+input_image: ../../../data/oasis3/example_T1w.nii.gz
+output_image: ../../../derivatives/oasis3/example_T1w_preprocessed.nii.gz
+qc_report: ../../../derivatives/oasis3/example_T1w_qc.json
+preprocessing:
+  target_spacing_mm: [1.0, 1.0, 1.0]
+  output_shape: [160, 192, 160]
+  intensity_lower_percentile: 0.5
+  intensity_upper_percentile: 99.5
+  use_n4_bias_correction: false
+  fail_on_qc_error: true

@@ -1,0 +1,10 @@
+root: ../../reports/export_candidate
+mode: export
+allowed_fields:
+  - subgroup
+  - metric
+  - estimate
+  - confidence_interval_lower
+  - confidence_interval_upper
+max_files: 100000
+inspect_dicom_headers: true
