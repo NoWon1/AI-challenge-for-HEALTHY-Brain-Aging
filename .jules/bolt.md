@@ -4,3 +4,6 @@
 ## 2025-02-20 - [Performance] Vectorize Pandas top-K extraction in evaluation
 **Learning:** Using pandas `.iterrows()` for top-K extraction in `evaluation/explainability.py` was a significant performance bottleneck.
 **Action:** Replace `.iterrows()` loops in dataframe processing with vectorized NumPy operations. We used `np.argpartition` combined with `np.argsort` to efficiently extract top K features, leading to a massive speedup (~240x in isolated tests).
+## 2025-02-23 - [Performance] Vectorize Pandas ETL feature mapping
+**Learning:** Using `.iterrows()` to parse rows and then loop through a feature mapping dict in the ETL adapters was a significant performance bottleneck (taking O(N*M) pure Python operations instead of utilizing NumPy/Pandas underlying C arrays).
+**Action:** Replace nested `.iterrows()` loops when melting/extracting dataset features with a column-based approach: loop through the feature dictionary and create sub-DataFrames for each mapped feature directly using `raw[source_col].notna()` masks, then concat at the end. By keeping track of an initial index (`_row_idx`), you can sort the concatenated frame back exactly into the original insertion order, giving an order of magnitude speedup.
