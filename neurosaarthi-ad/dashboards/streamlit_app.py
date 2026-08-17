@@ -410,9 +410,10 @@ def _participant_view(runtime, forecast) -> None:
     st.markdown("## Participant progression studio")
     safe_id = html.escape(str(forecast.profile.participant_id))
     safe_label = html.escape(str(forecast.profile.label))
+    safe_modalities = html.escape(str(len(forecast.available_modalities)))
     st.markdown(
         f"<p class='ns-section-note'>Fictional ID <b>{safe_id}</b> · {safe_label} · "
-        f"{len(forecast.available_modalities)} of 5 modality groups available</p>",
+        f"{safe_modalities} of 5 modality groups available</p>",
         unsafe_allow_html=True,
     )
 
