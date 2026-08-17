@@ -118,6 +118,37 @@ class AdniAdapter(CohortAdapter):
             'APOE4': ('genomics', 'apoe_e4_count', 'alleles'),
         }
         
+        # ⚡ Bolt: Vectorized feature extraction avoids slow .iterrows() loop
+        raw['_row_idx'] = np.arange(len(raw))
+        dfs = []
+        feat_keys = list(feature_map.keys())
+        for source_col, (modality, feature_name, unit) in feature_map.items():
+            if source_col in raw.columns:
+                valid_rows = raw[raw[source_col].notna()].copy()
+                if not valid_rows.empty:
+                    df_feat = pd.DataFrame({
+                        'feature_row_id': valid_rows['visit_id'] + '-' + feature_name,
+                        'participant_id': valid_rows['participant_id'],
+                        'visit_id': valid_rows['visit_id'],
+                        'cohort': self.cohort_name,
+                        'modality': modality,
+                        'feature_name': feature_name,
+                        'value': valid_rows[source_col].astype(float),
+                        'unit': unit,
+                        'source_variable': source_col,
+                        'qc_flag': 'pass',
+                        'derived': False,
+                        '_row_idx': valid_rows['_row_idx'],
+                        '_feat_idx': feat_keys.index(source_col),
+                    })
+                    dfs.append(df_feat)
+
+        if not dfs:
+            return pd.DataFrame()
+
+        res = pd.concat(dfs, ignore_index=True)
+        res = res.sort_values(['_row_idx', '_feat_idx']).reset_index(drop=True)
+        res = res.drop(columns=['_row_idx', '_feat_idx'])
         # ⚡ Bolt: Vectorized feature extraction replaces slow .iterrows() loop, resulting in ~16x speedup.
         # We track `_row_idx` and `_feat_idx` to preserve the original insertion order before sorting.
         dfs = []
