@@ -4,3 +4,4 @@ __pycache__/
 .streamlit/
 *.py[cod]
 *.egg-info/
+venv/
