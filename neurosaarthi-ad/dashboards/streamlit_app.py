@@ -288,9 +288,6 @@ def _risk_card(row: pd.Series) -> str:
     upper = html.escape(f"{row['upper']:.0%}")
     return f"""
     <div class="ns-risk">
-      <div class="label">{int(row["horizon"])}-year progression risk</div>
-      <div class="value">{row["risk"]:.0%}</div>
-      <div class="interval">80% synthetic interval · {row["lower"]:.0%}–{row["upper"]:.0%}</div>
       <div class="label">{horizon}-year progression risk</div>
       <div class="value">{risk}</div>
       <div class="interval">80% synthetic interval · {lower}–{upper}</div>
@@ -413,10 +410,10 @@ def _participant_view(runtime, forecast) -> None:
     st.markdown("## Participant progression studio")
     safe_id = html.escape(str(forecast.profile.participant_id))
     safe_label = html.escape(str(forecast.profile.label))
+    safe_modalities = html.escape(str(len(forecast.available_modalities)))
     st.markdown(
-        f"<p class='ns-section-note'>Fictional ID <b>{html.escape(str(forecast.profile.participant_id))}</b> · {html.escape(str(forecast.profile.label))} · "
         f"<p class='ns-section-note'>Fictional ID <b>{safe_id}</b> · {safe_label} · "
-        f"{len(forecast.available_modalities)} of 5 modality groups available</p>",
+        f"{safe_modalities} of 5 modality groups available</p>",
         unsafe_allow_html=True,
     )
 
