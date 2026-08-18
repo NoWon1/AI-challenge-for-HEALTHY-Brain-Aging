@@ -336,7 +336,7 @@ class GBMDiscreteTimeRiskEnsemble:
                     seed=self.seed + i * 37,
                 )
                 model.fit(intervals, target_col='interval_event')
-            except Exception:
+            except (ImportError, ValueError):
                 model = Pipeline(
                     steps=[
                         ("imputer", SimpleImputer(strategy="median")),
@@ -431,7 +431,7 @@ class DemoRuntime:
             self.survival_model = RandomSurvivalForestModel(
                 feature_columns=ALL_MODEL_FEATURES
             ).fit(self.train)
-        except Exception:
+        except (ImportError, ValueError):
             self.survival_model = None
 
         self.trajectory_model = self._fit_trajectory_model()
@@ -797,7 +797,7 @@ class DemoRuntime:
 
         survival_curve = None
         if self.survival_model is not None:
-            survival_curve = self.survival_model.predict_survival(frame)
+            survival_curve = self.survival_model.predict_survival_function(frame)
 
         twin_summary = twins[["participant_id", "cohort", "urban_rural", "similarity", "cognitive_score"]].copy()
         twin_summary = twin_summary.rename(columns={"cognitive_score": "baseline_cognition"})
