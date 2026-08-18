@@ -119,6 +119,19 @@ class TwinLiteRetriever:
 
         return self
 
+    def __getstate__(self):
+        """Sanitize participant data before pickling to prevent data exfiltration."""
+        state = self.__dict__.copy()
+        if "_reference" in state and state["_reference"] is not None:
+            safe_ref = state["_reference"].copy()
+            # Hash or obscure participant IDs to prevent leaking sensitive identifiers in exported artifacts
+            import hashlib
+            safe_ref[self.participant_col] = safe_ref[self.participant_col].astype(str).apply(
+                lambda x: hashlib.sha256(x.encode()).hexdigest()[:12]
+            )
+            state["_reference"] = safe_ref
+        return state
+
     def _compute_distances(self, vector: np.ndarray) -> np.ndarray:
         """Compute distances between *vector* and all reference rows."""
         diff = self._matrix - vector
