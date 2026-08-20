@@ -1,0 +1,4 @@
+
+## 2024-05-18 - Preserving Row Insertion Order in Vectorized ETL Operations
+**Learning:** When replacing slow `.iterrows()` loops with vectorized pandas approaches in ETL adapters (like building feature tables where one row expands into multiple rows based on column presence), strict dataframe equality tests often fail because `pd.concat` combined with `sort_values` changes the exact output order compared to the procedural `list.append` approach.
+**Action:** When vectorizing these expansions in this codebase, explicitly capture and track the original row index (`_row_idx`) and the feature mapping loop index (`_feat_idx`). After `pd.concat`, sort by these tracked indices `['_row_idx', '_feat_idx']` before dropping them. This precisely matches the original procedural insertion order and ensures strict equivalence in tests.
