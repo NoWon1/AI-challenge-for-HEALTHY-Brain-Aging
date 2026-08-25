@@ -17,3 +17,6 @@
 ## 2026-08-18 - Vectorize Pandas iterrows in NACC ETL Adapter
 **Learning:** Codebase Anti-Pattern/Convention: Using Pandas `.iterrows()` for processing features in ETL adapters like `NaccAdapter` causes significant performance bottlenecks.
 **Action:** Replaced the nested `.iterrows()` loops in `neurosaarthi-ad/etl/nacc/adapter.py`'s `_build_features` with vectorized `pd.concat` operations. Maintained strict DataFrame equality checks by tracking original row and feature indices (`_row_idx`, `_feat_idx`). Achieved an estimated ~7x speedup.
+## 2024-05-18 - Avoid iterrows in AIBL and OASIS adapters
+**Learning:** Codebase Anti-Pattern/Convention: Avoid using Pandas `.iterrows()` in ETL adapters, specifically `AiblAdapter` and `OasisAdapter`, as they cause severe performance bottlenecks (~14x slower than vectorized approaches).
+**Action:** Replaced `.iterrows()` loops in `neurosaarthi-ad/etl/aibl/adapter.py` and `neurosaarthi-ad/etl/oasis/adapter.py` with vectorized `pd.concat` operations, while explicitly preserving original DataFrame ordering by keeping track of the original row index (`_row_idx`) and feature index (`_feat_idx`).
