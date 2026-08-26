@@ -17,3 +17,7 @@
 ## 2026-08-18 - Vectorize Pandas iterrows in NACC ETL Adapter
 **Learning:** Codebase Anti-Pattern/Convention: Using Pandas `.iterrows()` for processing features in ETL adapters like `NaccAdapter` causes significant performance bottlenecks.
 **Action:** Replaced the nested `.iterrows()` loops in `neurosaarthi-ad/etl/nacc/adapter.py`'s `_build_features` with vectorized `pd.concat` operations. Maintained strict DataFrame equality checks by tracking original row and feature indices (`_row_idx`, `_feat_idx`). Achieved an estimated ~7x speedup.
+
+## 2024-05-18 - ETL Iterrows Anti-Pattern
+**Learning:** Found a recurring performance bottleneck in data adapters (`_build_features`) where Pandas `.iterrows()` was used to construct long-format DataFrames row-by-row.
+**Action:** When vectorizing ETL loops across the codebase (e.g., using `pd.concat` of masked slices), track original row and feature indices externally (e.g. `row_indices = np.arange(len(raw))`) rather than mutating the input DataFrame in-place (e.g., `raw['_row_idx'] = ...`). Always explicitly cast identifier columns to strings to prevent `TypeError`s, and restore the exact expected final sort order to pass strict equality tests.
