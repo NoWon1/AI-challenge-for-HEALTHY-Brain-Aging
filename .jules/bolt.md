@@ -1,3 +1,6 @@
+## 2024-05-18 - Replacing iterrows() in ETL pipelines
+**Learning:** The ETL adapters heavily used `pd.DataFrame.iterrows()` inside nested loops to construct feature rows based on dictionaries, causing major performance bottlenecks as O(N) Python iteration is slow.
+**Action:** When migrating legacy iteration to fully vectorized `pd.concat` operations, you can strictly preserve the exact same nested loop insertion order (important for equality testing downstream) by temporarily adding `_row_idx` (`valid_rows.index`) and `_feat_idx` (from `enumerate(feature_map.items())`) columns, sorting by them, and dropping them before the final return.
 ## 2025-02-18 - ETL Anti-Pattern
 **Learning:** Codebase Anti-Pattern/Convention: Avoid using Pandas `.iterrows()` in the ETL adapters (e.g., `etl/base.py`, cohort adapters). Iterating over DataFrames is extremely slow in python compared to utilizing numpy underneath.
 **Action:** Replace iteration with idiomatic, vectorized Pandas operations (like `.merge()`, `combine_first()`, and boolean masking) to prevent severe performance bottlenecks.
