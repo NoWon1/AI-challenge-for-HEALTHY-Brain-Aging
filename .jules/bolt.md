@@ -20,3 +20,6 @@
 ## 2026-08-26 - Vectorize Pandas iterrows in AIBL & OASIS ETL Adapters
 **Learning:** Codebase Anti-Pattern/Convention: Using Pandas `.iterrows()` in ETL adapters (`AiblAdapter` and `OasisAdapter`) creates a significant performance bottleneck.
 **Action:** Replaced `.iterrows()` loops with vectorized `.notna()` masking and `pd.concat` operations while tracking `_row_idx` and `_feat_idx` to maintain strict original row ordering. This optimization provides roughly a 10x speedup in parsing clinical feature rows.
+## 2026-08-29 - Vectorize UI iteration using to_dict('records')
+**Learning:** Using Pandas `.iterrows()` for rendering UI components row-by-row creates a performance overhead since it constructs a new `pd.Series` for every row.
+**Action:** Replace `.iterrows()` with `.to_dict('records')` when row-level iteration with dictionary access is strictly required for UI component generation (e.g., in Streamlit). This significantly speeds up iteration by avoiding `pd.Series` instantiation.
