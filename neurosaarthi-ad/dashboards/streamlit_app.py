@@ -281,7 +281,7 @@ def _profile_controls() -> ParticipantProfile:
     )
 
 
-def _risk_card(row: pd.Series) -> str:
+def _risk_card(row: dict) -> str:
     horizon = html.escape(str(int(row['horizon'])))
     risk = html.escape(f"{row['risk']:.0%}")
     lower = html.escape(f"{row['lower']:.0%}")
@@ -418,7 +418,7 @@ def _participant_view(runtime, forecast) -> None:
     )
 
     risk_columns = st.columns(3)
-    for column, (_, row) in zip(risk_columns, forecast.risks.iterrows()):
+    for column, row in zip(risk_columns, forecast.risks.to_dict("records")):
         with column:
             st.markdown(_risk_card(row), unsafe_allow_html=True)
 
