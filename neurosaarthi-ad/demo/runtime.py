@@ -681,8 +681,9 @@ class DemoRuntime:
         feature_units = self.bundle.tables.modality_features[["feature_name", "unit"]].drop_duplicates()
         units_valid = all(canonical_units[row.feature_name] == row.unit for row in feature_units.itertuples())
         visits = self.bundle.tables.visits.sort_values(["participant_id", "visit_index"])
+        # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop
         visits_monotonic = bool(
-            visits.groupby("participant_id")["baseline_days"].apply(lambda values: values.is_monotonic_increasing).all()
+            visits.groupby("participant_id", sort=False)["baseline_days"].diff().fillna(0).ge(0).all()
         )
         checks = [
             ("Participant split isolation", True, "No person appears in training and validation."),
