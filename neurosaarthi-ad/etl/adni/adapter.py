@@ -56,7 +56,8 @@ class AdniAdapter(CohortAdapter):
             'participant_id': 'ADNI-' + baseline['RID'].astype(str).str.zfill(4),
             'cohort': self.cohort_name,
             'sex': baseline['PTGENDER'].map({'Male': 'Male', 'Female': 'Female'}).fillna('Unknown'),
-            'birth_year': (baseline['EXAMDATE'].apply(lambda x: pd.to_datetime(x, errors='coerce')).dt.year - baseline['AGE'].fillna(70)).astype('Int64'),
+            # ⚡ Bolt: Vectorized pd.to_datetime avoids slow .apply() loop for date parsing
+            'birth_year': (pd.to_datetime(baseline['EXAMDATE'], errors='coerce').dt.year - baseline['AGE'].fillna(70)).astype('Int64'),
             'education_years': baseline['PTEDUCAT'].fillna(0).astype(float),
             'language': 'cohort_recorded',
             'urban_rural': 'reference',
