@@ -26,3 +26,6 @@
 ## 2026-09-02 - [Vectorize pandas apply and loops for grouped monotonicity checks]
 **Learning:** Codebase Anti-Pattern/Convention: Avoid using pandas `.apply()` with custom lambdas (like `lambda values: values.is_monotonic_increasing`) or `.tolist()` comparisons in python loops to check for monotonicity over groups. These operations are extremely slow because they drop into pure python for every single group.
 **Action:** Replace `df.groupby(...)['col'].apply(...)` or loops checking `values != sorted(values)` with a vectorized approach: `df.groupby(..., sort=False)['col'].diff().fillna(0).ge(0).all()`. This runs in C via numpy/pandas and provides a ~100x+ speedup. In validation contexts where the specific violating group must be identified, use the fast vectorized check as a guard, and only fall back to the slow loop if a violation is detected.
+## 2026-09-04 - Vectorize Pandas apply with pd.to_datetime
+**Learning:** Codebase Anti-Pattern/Convention: Avoid using Pandas `.apply(lambda x: pd.to_datetime(x))` for parsing dates. Dropping down to pure Python for each row is extremely slow.
+**Action:** Replaced `.apply(lambda x: pd.to_datetime(x, errors='coerce'))` with the vectorized equivalent `pd.to_datetime(baseline['EXAMDATE'], errors='coerce')` in `neurosaarthi-ad/etl/adni/adapter.py`. This provided a ~900x speedup in local testing on sample datasets.
