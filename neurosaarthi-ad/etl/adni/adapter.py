@@ -26,9 +26,12 @@ class AdniAdapter(CohortAdapter):
     cohort_name: str = 'ADNI'
     
     def extract(self) -> CohortTables:
-        root = Path(self.data_dir)
-        merge_path = root / 'ADNIMERGE.csv'
+        root = Path(self.data_dir).resolve()
+        merge_path = (root / 'ADNIMERGE.csv').resolve()
         
+        if not merge_path.is_relative_to(root):
+            raise ValueError(f"Security error: Path traversal detected for ADNIMERGE.csv")
+
         if not merge_path.exists():
             raise FileNotFoundError(
                 f'ADNIMERGE.csv not found at {merge_path}. '

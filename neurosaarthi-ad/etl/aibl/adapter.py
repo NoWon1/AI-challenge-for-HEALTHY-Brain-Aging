@@ -21,9 +21,12 @@ class AiblAdapter(CohortAdapter):
     cohort_name: str = 'AIBL'
     
     def extract(self) -> CohortTables:
-        root = Path(self.data_dir)
-        clinical_path = root / 'aibl_clinical.csv'
+        root = Path(self.data_dir).resolve()
+        clinical_path = (root / 'aibl_clinical.csv').resolve()
         
+        if not clinical_path.is_relative_to(root):
+            raise ValueError(f"Security error: Path traversal detected for aibl_clinical.csv")
+
         if not clinical_path.exists():
             raise FileNotFoundError(
                 f'AIBL clinical data not found at {clinical_path}. '
