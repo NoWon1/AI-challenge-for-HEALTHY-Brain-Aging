@@ -23,9 +23,12 @@ class NaccAdapter(CohortAdapter):
     cohort_name: str = 'NACC'
     
     def extract(self) -> CohortTables:
-        root = Path(self.data_dir)
-        uds_path = root / 'investigator_nacc.csv'
+        root = Path(self.data_dir).resolve()
+        uds_path = (root / 'investigator_nacc.csv').resolve()
         
+        if not uds_path.is_relative_to(root):
+            raise ValueError(f"Security error: Path traversal detected for investigator_nacc.csv")
+
         if not uds_path.exists():
             raise FileNotFoundError(
                 f'NACC UDS data not found at {uds_path}. '

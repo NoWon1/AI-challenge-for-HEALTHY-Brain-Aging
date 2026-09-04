@@ -15,10 +15,13 @@ class OasisAdapter(CohortAdapter):
     cohort_name: str = 'OASIS'
     
     def extract(self) -> CohortTables:
-        root = Path(self.data_dir)
-        demographics_path = root / 'OASIS3_demographics.csv'
-        clinical_path = root / 'OASIS3_clinical.csv'
+        root = Path(self.data_dir).resolve()
+        demographics_path = (root / 'OASIS3_demographics.csv').resolve()
+        clinical_path = (root / 'OASIS3_clinical.csv').resolve()
         
+        if not demographics_path.is_relative_to(root) or not clinical_path.is_relative_to(root):
+            raise ValueError(f"Security error: Path traversal detected for OASIS data")
+
         if not demographics_path.exists() or not clinical_path.exists():
             raise FileNotFoundError(
                 f'OASIS data not found. Please ensure OASIS3_demographics.csv '

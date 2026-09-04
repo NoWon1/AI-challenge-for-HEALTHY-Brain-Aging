@@ -12,3 +12,7 @@
 **Vulnerability:** The generic CSV data adapter dynamically constructed file paths for loading CSV files using `Path(self.raw_dir) / f"{table_name}.csv"`. While `table_name` is currently static, this pattern lacked explicit containment verification.
 **Learning:** Hardcoded strings or fixed loops can still be refactored or exposed in the future. Constructing file paths dynamically without containment checks violates the explicit codebase convention to use `Path.resolve().is_relative_to(base_dir)`. This is a classic defense-in-depth failure.
 **Prevention:** Always resolve the base directory and the target path, then explicitly verify containment using `target_path.is_relative_to(base_dir)` before performing file I/O operations in ETL loaders.
+## 2024-05-24 - [Path Traversal in ETL Adapters]
+**Vulnerability:** Path traversal vulnerability in ETL adapters due to improper validation of file paths using `Path(...) / filename`.
+**Learning:** Even internal data loading components can be susceptible to path traversal if the base directory (`data_dir`) is somehow manipulated or loaded from untrusted configuration.
+**Prevention:** Always use `Path.resolve()` on both the base directory and the target file path, and strictly verify containment using `target_path.is_relative_to(base_dir)`.
