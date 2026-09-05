@@ -84,6 +84,23 @@ class TwinLiteRetriever:
     def matrix_(self) -> np.ndarray:
         return self._matrix
 
+    def __getstate__(self):
+        """Prevent data exfiltration by only serializing necessary columns.
+
+        Per security coding convention, we must not hash primary identifiers
+        (like participant_id) as they are needed for downstream retrieval.
+        Instead, we drop all unused columns from the reference dataframe.
+        """
+        state = self.__dict__.copy()
+        if "_reference" in state and isinstance(state["_reference"], pd.DataFrame):
+            keep_cols = set(self.feature_columns)
+            keep_cols.add(self.participant_col)
+            if self.cohort_balanced:
+                keep_cols.add(self.cohort_col)
+            keep_cols = list(keep_cols.intersection(state["_reference"].columns))
+            state["_reference"] = state["_reference"][keep_cols].copy()
+        return state
+
     def fit(self, frame: pd.DataFrame) -> "TwinLiteRetriever":
         """Fit the retriever on the training *frame*."""
         self._reference = frame.reset_index(drop=True).copy()
