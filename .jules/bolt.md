@@ -29,3 +29,7 @@
 ## 2026-08-30 - Vectorize Pandas Date Parsing in ADNI ETL Adapter
 **Learning:** Codebase Anti-Pattern/Convention: Avoid using pandas `.apply(lambda x: pd.to_datetime(x))` for parsing dates in dataframes (e.g., in `neurosaarthi-ad/etl/adni/adapter.py`). This runs purely in Python for every row and is extremely slow.
 **Action:** Replaced with the vectorized approach `pd.to_datetime(df['col'])` to leverage C/NumPy execution for significant performance gains (a ~3000x speedup in isolated benchmark).
+
+## 2024-05-24 - [O(N^2) DeLong test bottleneck]
+**Learning:** The implementation of DeLong's test in `evaluation/comparison.py` used list comprehensions (`[np.sum(neg_preds_a < pa) for pa in pos_preds_a]`) that evaluate to an O(N * M) complexity. For arrays larger than a few thousand, this becomes a severe bottleneck (taking several seconds per test). Broadcasting also creates large memory overhead and isn't a silver bullet.
+**Action:** Replace nested comparisons or large broadcasts with `np.sort` and `np.searchsorted` to achieve O((N+M) log(N+M)) performance. This scales perfectly to tens of thousands of rows while using minimal memory.
