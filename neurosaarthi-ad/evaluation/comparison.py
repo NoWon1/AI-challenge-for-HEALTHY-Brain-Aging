@@ -76,11 +76,24 @@ def delong_test(y_true: np.ndarray | pd.Series, y_score_a: np.ndarray | pd.Serie
     pos_preds_b = y_score_b[pos_mask]
     neg_preds_b = y_score_b[neg_mask]
 
-    # Compute empirical structural components
-    V10_a = np.array([np.sum(neg_preds_a < pa) + 0.5 * np.sum(neg_preds_a == pa) for pa in pos_preds_a]) / n
-    V01_a = np.array([np.sum(pos_preds_a > na) + 0.5 * np.sum(pos_preds_a == na) for na in neg_preds_a]) / m
-    V10_b = np.array([np.sum(neg_preds_b < pb) + 0.5 * np.sum(neg_preds_b == pb) for pb in pos_preds_b]) / n
-    V01_b = np.array([np.sum(pos_preds_b > nb) + 0.5 * np.sum(pos_preds_b == nb) for nb in neg_preds_b]) / m
+    # ⚡ Bolt: Vectorized O(N log N) empirical structural components using searchsorted to avoid slow O(N^2) list comprehensions
+    def _compute_components(pos_preds, neg_preds, m, n):
+        neg_sorted = np.sort(neg_preds)
+        pos_sorted = np.sort(pos_preds)
+
+        count_less = np.searchsorted(neg_sorted, pos_preds, side='left')
+        count_equal = np.searchsorted(neg_sorted, pos_preds, side='right') - count_less
+        V10 = (count_less + 0.5 * count_equal) / n
+
+        count_less_pos = np.searchsorted(pos_sorted, neg_preds, side='left')
+        count_less_equal_pos = np.searchsorted(pos_sorted, neg_preds, side='right')
+        count_equal_pos = count_less_equal_pos - count_less_pos
+        V01 = ((m - count_less_equal_pos) + 0.5 * count_equal_pos) / m
+
+        return V10, V01
+
+    V10_a, V01_a = _compute_components(pos_preds_a, neg_preds_a, m, n)
+    V10_b, V01_b = _compute_components(pos_preds_b, neg_preds_b, m, n)
 
     auc_a = np.mean(V10_a)
     auc_b = np.mean(V10_b)
