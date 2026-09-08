@@ -4,3 +4,9 @@ __pycache__/
 .streamlit/
 *.py[cod]
 *.egg-info/
+*.csv
+*.tsv
+*.nii
+*.nii.gz
+.env
+.env.local
