@@ -2,34 +2,46 @@
 
 import joblib
 import json
+import os
 from pathlib import Path
 
 # ── Import your demo runtime which trains the models on synthetic data ──
 from demo.runtime import build_demo_runtime
+from demo.synthetic import generate_demo_cohort
 
 OUT_DIR = Path("hf_upload")
 OUT_DIR.mkdir(exist_ok=True)
+os.chmod(OUT_DIR, 0o700)
 
 # 1. Build the runtime (trains all sub-models on synthetic data)
-runtime = build_demo_runtime()
+bundle = generate_demo_cohort(seed=42, n_per_cohort=120)
+runtime = build_demo_runtime(bundle=bundle, n_bootstrap=1)
 
 # 2. Save classification pipelines (LightGBM)
-for horizon, pipeline in runtime.classifiers.items():
-    joblib.dump(pipeline, OUT_DIR / f"classifier_{horizon}yr.joblib")
+for modality, ensemble in getattr(runtime, 'risk_models', {}).items():
+    path = OUT_DIR / f"risk_{modality.replace('+', '').replace('/', '_').replace(' ', '_')}.joblib"
+    joblib.dump(ensemble, path)
+    os.chmod(path, 0o600)
 
 # 3. Save survival models (RSF / CoxBoost)
 for model_name, model in getattr(runtime, 'survival_models', {}).items():
-    joblib.dump(model, OUT_DIR / f"survival_{model_name}.joblib")
+    path = OUT_DIR / f"survival_{model_name}.joblib"
+    joblib.dump(model, path)
+    os.chmod(path, 0o600)
 
 # 4. Save the cognitive-trajectory regressor
-joblib.dump(runtime.progression, OUT_DIR / f"progression_regressor.joblib")
+path = OUT_DIR / "progression_regressor.joblib"
+joblib.dump(runtime.trajectory_model, path)
+os.chmod(path, 0o600)
 
 # 5. Save the twin-lite retrieval index
-joblib.dump(runtime.twinlite, OUT_DIR / f"twinlite_retriever.joblib")
+path = OUT_DIR / "twinlite_retriever.joblib"
+joblib.dump(runtime.twin_retriever, path)
+os.chmod(path, 0o600)
 
-# 5. Save config / feature metadata
+# 6. Save config / feature metadata
 config = {
-    "horizons": list(runtime.classifiers.keys()),
+    "horizons": [1, 3, 5],
     "modality_features": {
         "Cognition + clinical": [
             "age", "education_years", "sex_binary", "rural_indicator",
@@ -50,7 +62,9 @@ config = {
     "framework": "scikit-learn",
     "python_requires": ">=3.10",
 }
-with open(OUT_DIR / "config.json", "w") as f:
+path = OUT_DIR / "config.json"
+with open(path, "w") as f:
     json.dump(config, f, indent=2)
+os.chmod(path, 0o600)
 
 print(f" All artifacts saved to {OUT_DIR.resolve()}")

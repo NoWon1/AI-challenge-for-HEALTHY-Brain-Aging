@@ -1,0 +1,43 @@
+{
+  "horizons": [
+    1,
+    3,
+    5
+  ],
+  "modality_features": {
+    "Cognition + clinical": [
+      "age",
+      "education_years",
+      "sex_binary",
+      "rural_indicator",
+      "cognitive_score",
+      "memory_score",
+      "executive_score"
+    ],
+    "MRI": [
+      "hippocampal_volume_mm3",
+      "wmh_burden_ml"
+    ],
+    "Blood": [
+      "hba1c_percent",
+      "hs_crp_mg_l"
+    ],
+    "OCT/OCTA": [
+      "rnfl_um",
+      "vessel_density_percent"
+    ],
+    "Genomics": [
+      "apoe_e4_count",
+      "ancestry_pc1"
+    ]
+  },
+  "modality_weights": {
+    "Cognition + clinical": 0.4,
+    "MRI": 0.23,
+    "Blood": 0.14,
+    "OCT/OCTA": 0.11,
+    "Genomics": 0.12
+  },
+  "framework": "scikit-learn",
+  "python_requires": ">=3.10"
+}
