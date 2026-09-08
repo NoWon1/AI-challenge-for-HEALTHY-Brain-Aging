@@ -170,16 +170,14 @@ class CoxBoostModel:
             partial_hazard = self._model.predict_partial_hazard(df).to_numpy().ravel()
             # Approximate survival via S(t) = S0(t)^exp(risk)
             baseline_surv = np.exp(-np.searchsorted(self._baseline_times, time_points) * 0.01)
-            result = np.column_stack(
-                [baseline_surv[np.newaxis, :] ** ph for ph in partial_hazard]
-            ).T  # shape (n_samples, n_times) -- transposed from column stack
+            # ⚡ Bolt: Vectorized NumPy broadcasting replaces slow list comprehension and column_stack
+            result = baseline_surv[np.newaxis, :] ** partial_hazard[:, np.newaxis]
             return np.clip(result, 0.0, 1.0)
         else:
             probs = self._model.predict_proba(X)[:, 1]
             # Approximate: S(t) ≈ (1-p)^(t/365.25)
-            result = np.column_stack(
-                [(1.0 - probs) ** (t / 365.25) for t in time_points]
-            )
+            # ⚡ Bolt: Vectorized NumPy broadcasting replaces slow list comprehension and column_stack
+            result = (1.0 - probs[:, np.newaxis]) ** (time_points[np.newaxis, :] / 365.25)
             return np.clip(result, 0.0, 1.0)
 
     def concordance_index(
