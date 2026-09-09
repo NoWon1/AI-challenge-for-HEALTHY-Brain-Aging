@@ -57,11 +57,11 @@ class TrainOnlyComBat:
                 except np.linalg.LinAlgError:
                     logger.warning("LinAlgError during residualisation for column %s. Skipping residualisation for this feature.", col)
         
+        # ⚡ Bolt: Vectorized groupby aggregations avoid slow explicit Python loops
         # Batch-specific location and scale from residuals
-        for batch, group in frame.groupby(self.batch_col, sort=False):
-            batch_data = residuals.loc[group.index]
-            self._batch_means[batch] = batch_data.mean()
-            self._batch_stds[batch] = batch_data.std().replace(0.0, 1.0).fillna(1.0)
+        grouped = residuals.groupby(frame[self.batch_col], sort=False)
+        self._batch_means = grouped.mean()
+        self._batch_stds = grouped.std().replace(0.0, 1.0).fillna(1.0)
         
         self._fitted = True
         return self
@@ -70,23 +70,21 @@ class TrainOnlyComBat:
         if not self._fitted:
             raise RuntimeError('TrainOnlyComBat must be fitted before transform')
         result = frame.copy()
+        data = result[self.feature_columns].astype(float)
+
+        # ⚡ Bolt: Vectorized reindexing replaces slow .groupby() loops for applying batch statistics
+        batch_col_vals = result[self.batch_col]
+
+        mean_df = self._batch_means.reindex(batch_col_vals).fillna(0.0)
+        mean_df.index = result.index
+
+        std_df = self._batch_stds.reindex(batch_col_vals).fillna(1.0)
+        std_df.index = result.index
         
-        for batch, group in result.groupby(self.batch_col, sort=False):
-            idx = group.index
-            data = result.loc[idx, self.feature_columns].astype(float)
-            
-            if batch in self._batch_means:
-                batch_mean = self._batch_means[batch]
-                batch_std = self._batch_stds[batch]
-            else:
-                # Unseen batch: use grand statistics
-                batch_mean = pd.Series(0.0, index=self.feature_columns)
-                batch_std = pd.Series(1.0, index=self.feature_columns)
-            
-            # Standardise within batch, then rescale to grand distribution
-            standardised = (data - batch_mean) / batch_std
-            harmonised = standardised * self._grand_std + self._grand_mean
-            result.loc[idx, self.feature_columns] = harmonised
+        # Standardise within batch, then rescale to grand distribution
+        standardised = (data - mean_df) / std_df
+        harmonised = standardised * self._grand_std + self._grand_mean
+        result[self.feature_columns] = harmonised
         
         return result
     
