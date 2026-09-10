@@ -144,6 +144,35 @@ class SHAPExplainer:
         """
         shap_df = self.explain(frame)
         
+        # ⚡ Bolt: Vectorized SHAP extraction avoids slow .iterrows() loop.
+        # Uses numpy argsort to find top-k features across all rows efficiently.
+        num_cols = shap_df.shape[1]
+        actual_k = min(k, num_cols)
+
+        shap_vals = shap_df.values
+        abs_vals = np.abs(shap_vals)
+
+        # Get indices of the top-k absolute values for each row
+        # argsort sorts ascending, so we negate the values to sort descending
+        sorted_indices = np.argsort(-abs_vals, axis=1)[:, :actual_k]
+
+        columns = shap_df.columns.values
+
+        # Use advanced indexing to get features and values
+        top_feats = columns[sorted_indices]
+        row_indices = np.arange(shap_vals.shape[0])[:, None]
+        top_vals = shap_vals[row_indices, sorted_indices]
+
+        results = {}
+        for i in range(k):
+            if i < actual_k:
+                results[f"feature_{i+1}"] = top_feats[:, i]
+                results[f"value_{i+1}"] = top_vals[:, i]
+            else:
+                results[f"feature_{i+1}"] = None
+                results[f"value_{i+1}"] = None
+
+        return pd.DataFrame(results, index=shap_df.index)
         # ⚡ Bolt: Replaced slow .iterrows() with vectorized numpy operations (~100x faster for 10k rows)
         shap_vals = shap_df.values
         abs_shap_vals = np.abs(shap_vals)
