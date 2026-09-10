@@ -55,6 +55,19 @@ class TwinLiteRetriever:
     cohort_col: str = "cohort"
 
     # Fitted state -------------------------------------------------------
+
+    def __getstate__(self) -> dict:
+        """Secure state for serialization by hashing participant identifiers."""
+        import hashlib
+        state = self.__dict__.copy()
+        if getattr(self, "_reference", None) is not None and self.participant_col in self._reference.columns:
+            secure_reference = self._reference.copy()
+            secure_reference[self.participant_col] = secure_reference[self.participant_col].astype(str).apply(
+                lambda x: hashlib.sha256(x.encode()).hexdigest()
+            )
+            state["_reference"] = secure_reference
+        return state
+
     _reference: pd.DataFrame = field(default=None, repr=False, init=False)  # type: ignore[assignment]
     _matrix: np.ndarray = field(default=None, repr=False, init=False)  # type: ignore[assignment]
     _medians: pd.Series = field(default=None, repr=False, init=False)  # type: ignore[assignment]
