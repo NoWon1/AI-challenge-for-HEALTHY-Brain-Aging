@@ -73,15 +73,17 @@ class MixedEffectsTrajectory:
             # Vectorized base predictions for all rows
             preds = np.array(self.result_.predict(exog), copy=True)
             
-            # Add random effects per group
-            for group, group_df in frame.groupby(self.group_col, sort=False):
-                if group in self.result_.random_effects:
-                    re = self.result_.random_effects[group]
-                    idx = group_df.index
-                    z = exog_re.loc[idx]
-                    re_pred = (z * re).sum(axis=1)
-                    # Use get_indexer to map frame indices to positional indices in preds array
-                    preds[frame.index.get_indexer(idx)] += re_pred.to_numpy()
+            # ⚡ Bolt: Vectorized random effects broadcasting avoids slow O(N) groupby loop
+            if self.result_.random_effects:
+                re_df = pd.DataFrame.from_dict(self.result_.random_effects, orient='index')
+                re_mapped = re_df.reindex(frame[self.group_col]).fillna(0.0)
+
+                common_cols = exog_re.columns.intersection(re_mapped.columns)
+                if len(common_cols) > 0:
+                    exog_re_np = exog_re[common_cols].to_numpy()
+                    re_mapped_np = re_mapped[common_cols].to_numpy()
+                    re_pred = np.sum(exog_re_np * re_mapped_np, axis=1)
+                    preds += re_pred
 
             return pd.Series(preds, index=frame.index, name="predicted_" + self._target_col)
         else:
@@ -90,11 +92,27 @@ class MixedEffectsTrajectory:
             # Vectorized global predictions
             preds = np.array(self.global_model_.predict(X_all), copy=True)
 
-            # Overwrite with group-specific predictions where available
-            for group, group_df in frame.groupby(self.group_col, sort=False):
-                if group in self.models_:
-                    idx = group_df.index
-                    preds[frame.index.get_indexer(idx)] = self.models_[group].predict(X_all.loc[idx])
+            # ⚡ Bolt: Vectorized fallback predictions via broadcasting avoids slow O(N) groupby loop
+            if self.models_:
+                coef_dict = {g: m.coef_ for g, m in self.models_.items()}
+                int_dict = {g: m.intercept_ for g, m in self.models_.items()}
+
+                coef_df = pd.DataFrame.from_dict(coef_dict, orient='index', columns=self.feature_columns)
+                int_series = pd.Series(int_dict)
+
+                groups = frame[self.group_col]
+                mapped_coefs = coef_df.reindex(groups)
+                mapped_ints = int_series.reindex(groups)
+
+                valid_mask = mapped_ints.notna()
+                if valid_mask.any():
+                    valid_idx = valid_mask.to_numpy().nonzero()[0]
+                    X_valid = X_all.iloc[valid_idx].to_numpy()
+                    C_valid = mapped_coefs.iloc[valid_idx].to_numpy()
+                    I_valid = mapped_ints.iloc[valid_idx].to_numpy()
+
+                    group_preds = np.sum(X_valid * C_valid, axis=1) + I_valid
+                    preds[valid_idx] = group_preds
 
             return pd.Series(preds, index=frame.index, name="predicted_" + self._target_col)
 
