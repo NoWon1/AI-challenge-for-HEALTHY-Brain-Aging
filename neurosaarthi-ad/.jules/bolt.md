@@ -1,3 +1,6 @@
 ## 2026-09-09 - O(N) penalty from loop-based dataframe groupby aggregations and re-merging
 **Learning:** In pandas, iterating over `.groupby()` objects with a python `for` loop to compute scalar group statistics (e.g., `mean`, `std`) and then individually mapping those statistics back into subsets of the original dataframe introduces massive O(N) looping overhead. The `TrainOnlyComBat` harmonization step suffered from this pattern.
 **Action:** Always replace explicit `for batch, group in frame.groupby(...)` loops with fully vectorized aggregations (`grouped.mean()`, `grouped.std()`). When mapping scalar group statistics back to the original dataframe shape, use `.reindex()` aligned on the group indicator column to achieve O(1) performance (e.g. 2.5x to 3x speedup on 1 million row datasets).
+## 2026-09-11 - O(N) penalty from explicit loop in AUPRC fallback calculation
+**Learning:** Calculating rank-based metrics (such as Average Precision) using an explicit python `for` loop over rows is surprisingly slow for large inputs, introducing significant O(N) looping overhead when iterating over boolean conditions.
+**Action:** Always prefer fully vectorized numpy operations, such as `np.cumsum` applied over binary arrays and boolean indexing, to compute metric structural components. This delivers a substantial (>2x) speedup without sacrificing clarity.

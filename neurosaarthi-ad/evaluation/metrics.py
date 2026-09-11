@@ -24,16 +24,16 @@ def _roc_auc_fallback(y_true: pd.Series, y_score: pd.Series) -> float:
 
 def _average_precision_fallback(y_true: pd.Series, y_score: pd.Series) -> float:
     frame = pd.DataFrame({"y": y_true, "score": y_score}).sort_values("score", ascending=False)
-    positives = int(frame["y"].sum())
+    y_arr = frame["y"].to_numpy()
+    positives = int(y_arr.sum())
     if positives == 0:
         raise ValueError("AUPRC requires at least one positive")
-    tp = 0
-    precisions = []
-    for rank, y in enumerate(frame["y"], start=1):
-        if y == 1:
-            tp += 1
-            precisions.append(tp / rank)
-    return float(sum(precisions) / positives)
+
+    # ⚡ Bolt: Vectorized AUPRC computation avoiding slow O(N) explicit loop
+    ranks = np.arange(1, len(y_arr) + 1)
+    tp_cumsum = np.cumsum(y_arr)
+    precisions = tp_cumsum[y_arr == 1] / ranks[y_arr == 1]
+    return float(precisions.sum() / positives)
 
 
 def binary_metrics(y_true: pd.Series, y_score: pd.Series) -> dict[str, float]:
