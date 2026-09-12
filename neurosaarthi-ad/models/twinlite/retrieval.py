@@ -199,8 +199,7 @@ class TwinLiteRetriever:
         cohorts = candidates[self.cohort_col].unique()
         max_per_cohort = max(1, (k // len(cohorts)) + 1)
 
-        selected: list[pd.DataFrame] = []
-        for _, group in candidates.groupby(self.cohort_col, sort=False):
-            selected.append(group.head(max_per_cohort))
-        combined = pd.concat(selected).sort_values("distance").head(k)
+        # ⚡ Bolt: Vectorized groupby.head avoids slow explicit loop over cohort groups
+        combined = candidates.groupby(self.cohort_col, sort=False).head(max_per_cohort)
+        combined = combined.sort_values("distance").head(k)
         return combined.reset_index(drop=True)
