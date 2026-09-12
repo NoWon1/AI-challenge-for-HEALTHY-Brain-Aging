@@ -4,3 +4,6 @@
 ## 2026-09-11 - O(N) penalty from explicit loop in AUPRC fallback calculation
 **Learning:** Calculating rank-based metrics (such as Average Precision) using an explicit python `for` loop over rows is surprisingly slow for large inputs, introducing significant O(N) looping overhead when iterating over boolean conditions.
 **Action:** Always prefer fully vectorized numpy operations, such as `np.cumsum` applied over binary arrays and boolean indexing, to compute metric structural components. This delivers a substantial (>2x) speedup without sacrificing clarity.
+## 2026-09-12 - O(N) penalty from loop-based dataframe groupby filtering
+**Learning:** In pandas, iterating over `.groupby()` objects with a python `for` loop to extract the top K items per group (and appending them to a list for `pd.concat`) introduces massive O(N) looping overhead.
+**Action:** Always prefer fully vectorized pandas operations, such as `df.groupby(...).head(k)`, to perform group-wise filtering and concatenation. This delegates the iteration to optimized C/Cython levels for significant performance gains.
