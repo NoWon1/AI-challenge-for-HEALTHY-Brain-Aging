@@ -26,5 +26,5 @@ def require_monotonic_visits(visits: pd.DataFrame, participant_col: str = "parti
     for participant_id, group in visits.groupby(participant_col, sort=False):
         values = group[order_col].tolist()
         if values != sorted(values):
-            raise ValueError(f"Visits are not monotonic for participant {participant_id}")
+            raise ValueError("Visits are not monotonic for one or more participants")
 
