@@ -24,22 +24,27 @@ except ImportError:
 
 def _numpy_cindex(event_times: np.ndarray, events: np.ndarray, risk_scores: np.ndarray) -> float:
     """Pure numpy fallback for Harrell's C-index."""
-    n = len(event_times)
-    concordant = 0.0
-    total = 0.0
-    for i in range(n):
-        if not events[i]:
-            continue
-        for j in range(n):
-            if event_times[i] < event_times[j]:
-                total += 1.0
-                if risk_scores[i] > risk_scores[j]:
-                    concordant += 1.0
-                elif risk_scores[i] == risk_scores[j]:
-                    concordant += 0.5
-    if total == 0.0:
+    event_times = np.asarray(event_times)
+    events = np.asarray(events, dtype=bool)
+    risk_scores = np.asarray(risk_scores)
+
+    if not np.any(events):
         return 0.5
-    return float(concordant / total)
+
+    # ⚡ Bolt: Vectorized numpy broadcasting to replace O(N^2) explicit python loops
+    t_i = event_times[events]
+    r_i = risk_scores[events]
+
+    valid_pairs = t_i[:, None] < event_times[None, :]
+    total = np.sum(valid_pairs)
+
+    if total == 0:
+        return 0.5
+
+    conc = np.sum((r_i[:, None] > risk_scores[None, :]) & valid_pairs)
+    ties = np.sum((r_i[:, None] == risk_scores[None, :]) & valid_pairs)
+
+    return float((conc + 0.5 * ties) / total)
 
 
 def concordance_index(
