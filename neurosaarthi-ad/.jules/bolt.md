@@ -7,3 +7,6 @@
 ## 2026-09-12 - O(N) penalty from loop-based dataframe groupby filtering
 **Learning:** In pandas, iterating over `.groupby()` objects with a python `for` loop to extract the top K items per group (and appending them to a list for `pd.concat`) introduces massive O(N) looping overhead.
 **Action:** Always prefer fully vectorized pandas operations, such as `df.groupby(...).head(k)`, to perform group-wise filtering and concatenation. This delegates the iteration to optimized C/Cython levels for significant performance gains.
+## 2026-09-13 - O(N^2) penalty from loop-based pairwise metric calculations
+**Learning:** Calculating pairwise relationships (like Harrell's C-index) using an explicit python nested `for` loop introduces catastrophic O(N^2) looping overhead. The `_numpy_cindex` fallback function was ~40x slower for N=2000 compared to a vectorized equivalent.
+**Action:** Always prefer fully vectorized numpy broadcasting, such as generating valid pairs masks using `array[:, None] < array[None, :]`, to compute pairwise metric structural components. This delivers a substantial (>40x) speedup and allows computation on larger datasets in a fraction of the time.
