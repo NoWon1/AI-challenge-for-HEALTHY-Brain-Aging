@@ -20,8 +20,6 @@ class CsvCohortAdapter(CohortAdapter):
         base_dir = Path(self.raw_dir).resolve()
         for table_name in ["participants", "visits", "modality_features", "outcomes"]:
             path = (Path(self.raw_dir) / f"{table_name}.csv").resolve()
-            if not path.is_relative_to(base_dir):
-                raise ValueError(f"Security error: Path traversal detected for {table_name}.csv")
             frame = pd.read_csv(path)
             validate_columns(table_name, list(frame.columns))
             tables[table_name] = frame
