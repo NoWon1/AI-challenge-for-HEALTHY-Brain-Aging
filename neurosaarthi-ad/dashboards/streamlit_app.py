@@ -282,10 +282,10 @@ def _profile_controls() -> ParticipantProfile:
 
 
 def _risk_card(row: dict) -> str:
-    horizon = html.escape(str(int(row['horizon'])))
-    risk = html.escape(f"{row['risk']:.0%}")
-    lower = html.escape(f"{row['lower']:.0%}")
-    upper = html.escape(f"{row['upper']:.0%}")
+    horizon = str(int(row['horizon']))
+    risk = f"{row['risk']:.0%}"
+    lower = f"{row['lower']:.0%}"
+    upper = f"{row['upper']:.0%}"
     return f"""
     <div class="ns-risk">
       <div class="label">{horizon}-year progression risk</div>
