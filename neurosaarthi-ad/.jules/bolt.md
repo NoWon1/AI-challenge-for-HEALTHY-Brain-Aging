@@ -10,3 +10,7 @@
 ## 2026-09-13 - O(N^2) penalty from loop-based pairwise metric calculations
 **Learning:** Calculating pairwise relationships (like Harrell's C-index) using an explicit python nested `for` loop introduces catastrophic O(N^2) looping overhead. The `_numpy_cindex` fallback function was ~40x slower for N=2000 compared to a vectorized equivalent.
 **Action:** Always prefer fully vectorized numpy broadcasting, such as generating valid pairs masks using `array[:, None] < array[None, :]`, to compute pairwise metric structural components. This delivers a substantial (>40x) speedup and allows computation on larger datasets in a fraction of the time.
+
+## 2024-03-22 - Vectorizing Dataframe Diagnostics with Pandas Stack
+**Learning:** Computing group statistics for multiple features using an explicit `for` loop over `.groupby()` with intermediate dictionary accumulation introduces massive O(N) looping overhead.
+**Action:** Replace this pattern by using pandas vectorized `.mean()` and `.std()` operations across all features simultaneously on the grouped dataframe, followed by `.stack()` and `.reset_index()` to melt the wide dataframe into a long format. This delegates the iteration to optimized C levels, resulting in significant performance gains (>10x speedup).
