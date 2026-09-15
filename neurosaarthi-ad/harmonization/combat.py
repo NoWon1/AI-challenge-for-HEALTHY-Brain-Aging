@@ -92,16 +92,19 @@ class TrainOnlyComBat:
         return self.fit(frame).transform(frame)
     
     def diagnostics(self, frame: pd.DataFrame) -> pd.DataFrame:
-        rows = []
-        for batch, group in frame.groupby(self.batch_col, sort=False):
-            data = group[self.feature_columns].astype(float)
-            for col in self.feature_columns:
-                rows.append({
-                    'batch': batch,
-                    'feature': col,
-                    'mean': float(data[col].mean()),
-                    'std': float(data[col].std()),
-                    'missing_rate': float(data[col].isna().mean()),
-                    'harmonised': self._fitted,
-                })
-        return pd.DataFrame(rows)
+        # ⚡ Bolt: Vectorized groupby aggregations avoid slow explicit Python loops
+        data = frame[self.feature_columns].astype(float)
+        grouped = data.groupby(frame[self.batch_col], sort=False)
+
+        means = grouped.mean().stack(dropna=False)
+        stds = grouped.std().stack(dropna=False)
+        missing = data.isna().groupby(frame[self.batch_col], sort=False).mean().stack(dropna=False)
+
+        df = pd.DataFrame({
+            'mean': means,
+            'std': stds,
+            'missing_rate': missing
+        }).reset_index()
+        df.columns = ['batch', 'feature', 'mean', 'std', 'missing_rate']
+        df['harmonised'] = self._fitted
+        return df
