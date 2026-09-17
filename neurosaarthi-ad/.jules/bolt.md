@@ -14,3 +14,7 @@
 ## 2024-03-22 - Vectorizing Dataframe Diagnostics with Pandas Stack
 **Learning:** Computing group statistics for multiple features using an explicit `for` loop over `.groupby()` with intermediate dictionary accumulation introduces massive O(N) looping overhead.
 **Action:** Replace this pattern by using pandas vectorized `.mean()` and `.std()` operations across all features simultaneously on the grouped dataframe, followed by `.stack()` and `.reset_index()` to melt the wide dataframe into a long format. This delegates the iteration to optimized C levels, resulting in significant performance gains (>10x speedup).
+
+## 2026-09-17 - Catching Duplicated Logic Bottlenecks
+**Learning:** When addressing severe performance bottlenecks (like replacing O(N^2) loops with vectorized NumPy arrays for C-index), identical slow logic often exists in multiple fallback implementations across different modules (e.g. `cox_boost.py` vs `survival_metrics.py`). Optimizing one location without checking for duplicated code leaves remaining bottlenecks intact.
+**Action:** Always search the codebase for duplicate fallback implementations when fixing an algorithmic complexity issue, ensuring that all similar patterns (such as pure-numpy fallbacks) are uniformly vectorized.

@@ -197,21 +197,24 @@ class CoxBoostModel:
             c, *_ = concordance_index_censored(events.astype(bool), times, risk)
             return float(c)
         # Pure-numpy fallback
-        concordant = 0
-        permissible = 0
-        for i in range(len(times)):
-            if events[i] == 0:
-                continue
-            for j in range(len(times)):
-                if i == j:
-                    continue
-                if times[j] > times[i]:
-                    permissible += 1
-                    if risk[j] < risk[i]:
-                        concordant += 1
-                    elif risk[j] == risk[i]:
-                        concordant += 0.5
-        return float(concordant / max(permissible, 1))
+        # ⚡ Bolt: Vectorized numpy broadcasting replaces slow O(N^2) explicit python loop
+        events_bool = events.astype(bool)
+        if not np.any(events_bool):
+            return 0.5
+
+        t_i = times[events_bool]
+        r_i = risk[events_bool]
+
+        valid_pairs = t_i[:, None] < times[None, :]
+        permissible = np.sum(valid_pairs)
+
+        if permissible == 0:
+            return 0.0
+
+        concordant = np.sum((r_i[:, None] > risk[None, :]) & valid_pairs)
+        ties = np.sum((r_i[:, None] == risk[None, :]) & valid_pairs)
+
+        return float((concordant + 0.5 * ties) / permissible)
 
     @property
     def backend(self) -> str:
