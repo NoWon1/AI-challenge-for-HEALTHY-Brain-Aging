@@ -15,6 +15,6 @@ def assert_disjoint_participants(train_ids: set[str], *other_id_sets: set[str]) 
     for index, ids in enumerate(other_id_sets, start=1):
         overlap = train_ids.intersection(ids)
         if overlap:
-            preview = ", ".join(sorted(overlap)[:5])
-            raise ValueError(f"Train participants overlap split {index}: {preview}")
+            # 🛡️ Sentinel: Fail securely by logging counts instead of leaking raw PII (participant_ids) in exception messages
+            raise ValueError(f"Train participants overlap split {index}: {len(overlap)} participants")
 
