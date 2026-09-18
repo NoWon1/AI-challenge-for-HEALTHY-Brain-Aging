@@ -197,21 +197,9 @@ class CoxBoostModel:
             c, *_ = concordance_index_censored(events.astype(bool), times, risk)
             return float(c)
         # Pure-numpy fallback
-        concordant = 0
-        permissible = 0
-        for i in range(len(times)):
-            if events[i] == 0:
-                continue
-            for j in range(len(times)):
-                if i == j:
-                    continue
-                if times[j] > times[i]:
-                    permissible += 1
-                    if risk[j] < risk[i]:
-                        concordant += 1
-                    elif risk[j] == risk[i]:
-                        concordant += 0.5
-        return float(concordant / max(permissible, 1))
+        from evaluation.survival_metrics import _numpy_cindex
+        # ⚡ Bolt: Vectorized numpy broadcasting replaces slow O(N^2) explicit loop
+        return _numpy_cindex(times, events, risk)
 
     @property
     def backend(self) -> str:
