@@ -5,3 +5,8 @@
 **Vulnerability:** No new vulnerabilities found during routine security audit.
 **Learning:** Evaluated the application across multiple potential vulnerability domains including deserialization (joblib/pickle), archive extraction (zipfile/tarfile), configuration parsing (yaml.safe_load), and UI rendering. The codebase proved robust in these areas. Static file paths loaded in ETL adapters do not require defense-in-depth path traversal checks because they are immune to external traversal attacks by design, and enforcing resolution checks actively breaks legitimate dataset symlinking workflows.
 **Prevention:** Maintained strict hygiene rules by explicitly adding dataset (`*.csv`, `*.tsv`, `*.nii`, `*.nii.gz`) and environment variable (`.env`, `.env.local`) exclusions to `.gitignore` to prevent accidental PII/secret leaks. The Sentinel audit confirmed compliance with existing security baselines.
+
+## 2026-10-26 - [Prevent PII Leakage in Exception Messages]
+**Vulnerability:** Found `assert_disjoint_participants` in `harmonization/leakage.py` throwing a `ValueError` that included a preview of participant IDs from overlapping splits, directly exposing raw PII in exception traces.
+**Learning:** Raw identifier variables (`participant_id`) should not be embedded directly into exception messages, as these exceptions can leak into crash reporting tools, logs, or user interfaces.
+**Prevention:** Fail securely by returning structural counts (e.g. `len(overlap)`) instead of raw values in exception strings to provide debugging context without leaking sensitive data.
