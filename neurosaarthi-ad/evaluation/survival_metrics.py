@@ -159,19 +159,40 @@ def integrated_brier_score(
         return float(sksurv_ibs(surv_y, surv_y, survival_probs, eval_times))
 
     # Fallback approximation
-    from sklearn.metrics import brier_score_loss
-    brier_scores = []
-    for i, t in enumerate(eval_times):
-        y_true = (events & (event_times <= t)).astype(int)
-        valid = (event_times > t) | events
-        if len(np.unique(y_true[valid])) > 1:
-            # Survival prob to event prob
-            event_probs = 1.0 - survival_probs[:, i]
-            brier_scores.append(brier_score_loss(y_true[valid], event_probs[valid]))
+    # ⚡ Bolt: Vectorized numpy broadcasting to replace O(M) explicit python loops and slow sklearn brier_score_loss calls
+    # y_true shape: (n_samples, n_eval_times)
+    y_true = (events[:, None] & (event_times[:, None] <= eval_times[None, :])).astype(int)
+    valid = (event_times[:, None] > eval_times[None, :]) | events[:, None]
+
+    event_probs = 1.0 - survival_probs
+    squared_error = (y_true - event_probs) ** 2
     
-    if not brier_scores:
+    valid_counts = valid.sum(axis=0)
+
+    # Check if both classes are present in the valid set
+    has_both_classes = (y_true & valid).sum(axis=0) > 0
+    has_both_classes &= ((~y_true.astype(bool)) & valid).sum(axis=0) > 0
+
+    mask = (valid_counts > 0) & has_both_classes
+
+    brier_scores = np.zeros(len(eval_times))
+    brier_scores[mask] = (squared_error * valid).sum(axis=0)[mask] / valid_counts[mask]
+
+    valid_brier_scores = brier_scores[mask]
+    valid_eval_times = eval_times[mask]
+
+    if len(valid_brier_scores) == 0:
         return np.nan
-    return float(np.trapz(brier_scores, eval_times) / (eval_times[-1] - eval_times[0]))
+
+    if len(valid_brier_scores) == 1:
+        return float(valid_brier_scores[0])
+
+    try:
+        trapz_func = np.trapezoid
+    except AttributeError:
+        trapz_func = np.trapz
+
+    return float(trapz_func(valid_brier_scores, valid_eval_times) / (valid_eval_times[-1] - valid_eval_times[0]))
 
 
 def calibration_slope(y_true: np.ndarray | pd.Series, y_pred: np.ndarray | pd.Series) -> tuple[float, float]:
