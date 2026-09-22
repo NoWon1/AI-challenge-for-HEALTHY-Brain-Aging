@@ -18,3 +18,7 @@
 ## 2026-09-17 - Catching Duplicated Logic Bottlenecks
 **Learning:** When addressing severe performance bottlenecks (like replacing O(N^2) loops with vectorized NumPy arrays for C-index), identical slow logic often exists in multiple fallback implementations across different modules (e.g. `cox_boost.py` vs `survival_metrics.py`). Optimizing one location without checking for duplicated code leaves remaining bottlenecks intact.
 **Action:** Always search the codebase for duplicate fallback implementations when fixing an algorithmic complexity issue, ensuring that all similar patterns (such as pure-numpy fallbacks) are uniformly vectorized.
+
+## 2026-09-22 - O(N*M) Python loops in demo runtime
+**Learning:** Codebase Anti-Pattern/Convention: Iterating over a Pandas `.groupby()` object and performing operations like interpolation on each group drops into Python and creates a severe O(N*M) performance bottleneck, especially for small groups but many unique entities (e.g. tracking digital twins).
+**Action:** Replace `for _, group in df.groupby("id"): ...` logic with vectorized operations over NumPy arrays. For time series operations over groups, sort the array by the group ID, identify boundaries using `np.where(arr[:-1] != arr[1:])`, and split the arrays via `np.split()`. This avoids the massive `.groupby()` overhead and keeps the operation in C/NumPy. Also, ensure you isolate your changes across files into separate atomic commits to avoid conflating potential regression testing issues.
