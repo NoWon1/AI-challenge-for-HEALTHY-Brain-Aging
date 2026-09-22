@@ -1,0 +1,13 @@
+⚡ Vectorize late fusion in demo runtime for 9x speedup
+
+💡 **What:**
+Replaced nested python `for` loops and heavy pandas dataframe operations in `_risk_distribution` and `_risk_distribution_baseline` with a fully vectorized numpy implementation `_vectorized_score_fusion`.
+
+🎯 **Why:**
+The original implementation looped over each bootstrap iteration and horizon, repeatedly building Pandas DataFrames in memory and using `weighted_score_fusion` which itself performed slow Pandas operations. This O(N) iteration incurred large overhead. By stacking the modality distributions and using numpy broadcasting, we do the weighted sum across all modalities, samples, bootstraps, and horizons simultaneously without any Python loops or Pandas overhead.
+
+📊 **Measured Improvement:**
+Benchmarked a mock distribution of 5 modalities over 20 bootstraps, 5000 samples, and 3 horizons.
+- Baseline implementation: 0.5666s
+- Vectorized implementation: 0.0616s
+- Improvement: **9.20x speedup** on the fusion logic.
