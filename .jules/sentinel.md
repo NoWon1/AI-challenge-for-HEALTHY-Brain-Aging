@@ -21,3 +21,8 @@
 **Vulnerability:** Found that the model export script `scripts/export_models.py` exported joblib artifacts with default process `umask` permissions. On shared machines (like HPC clusters) or when the resulting artifacts are read later, leaving the files world-readable or world-writable introduces the risk of local artifact tampering or exfiltration.
 **Learning:** Default file creation on multi-user systems shouldn't be trusted for sensitive objects like ML model weights or cohort data indexers which may embed internal representations. Even if they are synthetically trained, defensive modeling ensures safe handling in production.
 **Prevention:** Always follow up artifact creation with `os.chmod(path, 0o600)` to securely limit read/write access to the creating user only, reinforcing local data isolation.
+
+## 2026-09-22 - [Defense-in-depth Streamlit XSS Prevention]
+**Vulnerability:** In `_risk_card`, dynamic float formatting and integer casts were placed inside `st.markdown(..., unsafe_allow_html=True)` without explicit sanitization using `html.escape()`. Although these specific types are resistant to standard string injection, failure to universally apply escaping violates codebase security conventions and opens vectors if data types change.
+**Learning:** Even if the expected data is numeric (like progression risk percentages or horizons), explicitly escaping the final string before injection provides defense-in-depth against malicious payloads. Streamlit's `unsafe_allow_html=True` must always be paired with `html.escape`.
+**Prevention:** Always wrap dynamic variables in `html.escape()` before formatting them into a string to be passed to `st.markdown(..., unsafe_allow_html=True)`, enforcing a consistent XSS prevention pattern.
