@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from typing import Iterable
 
 import numpy as np
+import re
 import pandas as pd
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
@@ -725,6 +726,10 @@ class DemoRuntime:
             }
         )
 
+    def _sanitize_markdown_text(self, val: str) -> str:
+        # Escape CommonMark structural tokens to prevent Markdown injection
+        return re.sub(r"([\\`*_{}\[\]()#+\-.!~|<>])", r"\\\1", str(val))
+
     def _warnings(self, profile: ParticipantProfile, frame: pd.DataFrame) -> tuple[str, ...]:
         warnings: list[str] = []
         missing_modalities = [
@@ -733,14 +738,16 @@ class DemoRuntime:
             if modality != "Cognition + clinical" and not bool(self._available_mask(frame, modality).iloc[0])
         ]
         if missing_modalities:
+            clean_modalities = [self._sanitize_markdown_text(m) for m in missing_modalities]
             warnings.append(
-                "Missing modalities: " + ", ".join(missing_modalities) + ". Fusion weights were renormalised over available evidence."
+                "Missing modalities: " + ", ".join(clean_modalities) + ". Fusion weights were renormalised over available evidence."
             )
         outside = []
         for feature, (low, high) in self.training_ranges.items():
             value = frame.iloc[0].get(feature)
             if pd.notna(value) and (float(value) < low or float(value) > high):
-                outside.append(feature.replace("_", " "))
+                clean_feature = self._sanitize_markdown_text(feature.replace("_", " "))
+                outside.append(clean_feature)
         if outside:
             warnings.append("Outside the synthetic training range: " + ", ".join(outside[:4]) + ". Treat uncertainty as elevated.")
         available_nonclinical = 4 - len(missing_modalities)
