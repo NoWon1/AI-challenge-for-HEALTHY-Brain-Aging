@@ -21,3 +21,7 @@
 **Vulnerability:** Found that the model export script `scripts/export_models.py` exported joblib artifacts with default process `umask` permissions. On shared machines (like HPC clusters) or when the resulting artifacts are read later, leaving the files world-readable or world-writable introduces the risk of local artifact tampering or exfiltration.
 **Learning:** Default file creation on multi-user systems shouldn't be trusted for sensitive objects like ML model weights or cohort data indexers which may embed internal representations. Even if they are synthetically trained, defensive modeling ensures safe handling in production.
 **Prevention:** Always follow up artifact creation with `os.chmod(path, 0o600)` to securely limit read/write access to the creating user only, reinforcing local data isolation.
+## 2024-05-24 - Markdown Injection in Streamlit Warnings
+**Vulnerability:** Streamlit's `st.warning`, `st.error`, and similar functions render Markdown by default. Passing unescaped dynamic strings (like runtime warnings) to these functions can lead to Markdown injection attacks, such as hyperlink spoofing or tracking pixels.
+**Learning:** Security gaps can exist in UI boundary frameworks when they apply default formatting without explicit sanitization.
+**Prevention:** Strictly sanitize text at the creation boundary (e.g., using `re.sub(r"([\\`*_{}\[\]()#+\-.!~|<>])", r"\\\1", str(val))` to escape CommonMark structural tokens) before passing the dynamic string to Streamlit components that render Markdown.

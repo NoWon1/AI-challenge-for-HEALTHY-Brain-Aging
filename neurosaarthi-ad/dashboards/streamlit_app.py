@@ -11,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import html
+import re
 import altair as alt
 import numpy as np
 import pandas as pd
@@ -406,6 +407,10 @@ def _twins_chart(forecast) -> alt.Chart:
     )
 
 
+def _sanitize_markdown(text: str) -> str:
+    return re.sub(r"([\\`*_{}\[\]()#+\-.!~|<>])", r"\\\1", str(text))
+
+
 def _participant_view(runtime, forecast) -> None:
     st.markdown("## Participant progression studio")
     safe_id = html.escape(str(forecast.profile.participant_id))
@@ -423,7 +428,7 @@ def _participant_view(runtime, forecast) -> None:
             st.markdown(_risk_card(row), unsafe_allow_html=True)
 
     for warning in forecast.warnings:
-        st.warning(warning, icon="⚑")
+        st.warning(_sanitize_markdown(warning), icon="⚑")
 
     left, right = st.columns([1.25, 1])
     with left:
