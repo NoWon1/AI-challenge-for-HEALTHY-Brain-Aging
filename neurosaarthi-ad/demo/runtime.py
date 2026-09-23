@@ -13,11 +13,11 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from demo.synthetic import DemoCohortBundle, INDIAN_COHORTS, PUBLIC_COHORTS
+from demo.synthetic import DemoCohortBundle, PUBLIC_COHORTS
 from evaluation.calibration import calibration_bins
 from evaluation.metrics import binary_metrics
 from harmonization.leakage import assert_disjoint_participants, assert_no_future_features
-from models.fusion.late_fusion import weighted_score_fusion
+
 from models.progression.baseline import CognitiveTrajectoryRegressor
 from models.twinlite.retrieval import TwinLiteRetriever
 
@@ -286,7 +286,7 @@ class _LegacyDiscreteTimeRiskEnsemble:
 
 class GBMDiscreteTimeRiskEnsemble:
     """Bootstrap ensemble of GBM discrete-time hazard models."""
-    
+
     def __init__(self, feature_columns, n_bootstrap=12, seed=42):
         self.feature_columns = list(feature_columns)
         self.n_bootstrap = n_bootstrap
@@ -326,7 +326,7 @@ class GBMDiscreteTimeRiskEnsemble:
                     break
             if intervals is None or intervals["interval_event"].nunique() < 2:
                 intervals = self._interval_frame(training)
-            
+
             try:
                 from models.classification.lightgbm_risk import GBMRiskClassifier
                 model = GBMRiskClassifier(
@@ -460,35 +460,24 @@ class DemoRuntime:
                 n_bootstrap=self.n_bootstrap,
                 seed=self.seed + modality_index * 37,
             ).fit(self.train)
-        
+
         def _risk_distribution_baseline(frame: pd.DataFrame) -> np.ndarray:
             modality_distributions = {
                 modality: model.predict_distribution(frame)
                 for modality, model in baseline_models.items()
             }
-            fused = np.full((self.n_bootstrap, len(frame), len(HORIZONS)), np.nan, dtype=float)
-            for bootstrap_index in range(self.n_bootstrap):
-                for horizon_index, _ in enumerate(HORIZONS):
-                    score_frame = pd.DataFrame(index=frame.index)
-                    for modality, distribution in modality_distributions.items():
-                        values = distribution[bootstrap_index, :, horizon_index].copy()
-                        values[~self._available_mask(frame, modality).to_numpy()] = np.nan
-                        score_frame[modality] = values
-                    fused[bootstrap_index, :, horizon_index] = weighted_score_fusion(
-                        score_frame, MODALITY_WEIGHTS
-                    ).to_numpy()
-            return fused
+            return self._vectorized_score_fusion(frame, modality_distributions)
 
         baseline_dist = _risk_distribution_baseline(self.validation)
         baseline_median = np.nanmedian(baseline_dist, axis=0)
         baseline_risk_3y = baseline_median[:, 1]
         baseline_metrics = _safe_metrics(self.validation["event_by_3y"], baseline_risk_3y)
-        
+
         gbm_dist, _ = self._risk_distribution(self.validation)
         gbm_median = np.nanmedian(gbm_dist, axis=0)
         gbm_risk_3y = gbm_median[:, 1]
         gbm_metrics = _safe_metrics(self.validation["event_by_3y"], gbm_risk_3y)
-        
+
         return pd.DataFrame([
             {"model": "Baseline (Logistic)", **baseline_metrics},
             {"model": "Upgraded (GBM)", **gbm_metrics},
@@ -546,6 +535,47 @@ class DemoRuntime:
             return frame["cognitive_score"].notna()
         return frame[MODALITY_FEATURES[modality]].notna().any(axis=1)
 
+    def _vectorized_score_fusion(
+        self,
+        frame: pd.DataFrame,
+        modality_distributions: dict[str, np.ndarray],
+        disabled: set[str] = None
+    ) -> np.ndarray:
+        if disabled is None:
+            disabled = set()
+
+        mods = list(MODALITY_WEIGHTS.keys())
+        weights = np.array([MODALITY_WEIGHTS[m] for m in mods])
+
+        # 1. Pre-calculate availability masks for each modality
+        masks = {}
+        for modality in mods:
+            if modality in disabled:
+                masks[modality] = np.zeros(len(frame), dtype=bool)
+            else:
+                masks[modality] = self._available_mask(frame, modality).to_numpy()
+
+        # 2. Unified array of distributions
+        # shape: (n_modalities, n_bootstrap, n_samples, n_horizons)
+        dist_array = np.stack([modality_distributions[m] for m in mods])
+
+        # 3. Apply availability masks
+        mask_array = np.stack([masks[m] for m in mods])
+        mask_broadcast = mask_array[:, None, :, None]
+        dist_array_masked = np.where(mask_broadcast, dist_array, np.nan)
+
+        # 4. Compute weighted sum
+        weights_broadcast = weights[:, None, None, None]
+        available = ~np.isnan(dist_array_masked)
+
+        numerator = np.nansum(dist_array_masked * weights_broadcast, axis=0)
+        denominator = np.sum(available * weights_broadcast, axis=0)
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            fused = np.where(denominator > 0, numerator / denominator, np.nan)
+
+        return fused
+
     def _risk_distribution(
         self,
         frame: pd.DataFrame,
@@ -556,20 +586,7 @@ class DemoRuntime:
             modality: model.predict_distribution(frame)
             for modality, model in self.risk_models.items()
         }
-        fused = np.full((self.n_bootstrap, len(frame), len(HORIZONS)), np.nan, dtype=float)
-        for bootstrap_index in range(self.n_bootstrap):
-            for horizon_index, _ in enumerate(HORIZONS):
-                score_frame = pd.DataFrame(index=frame.index)
-                for modality, distribution in modality_distributions.items():
-                    values = distribution[bootstrap_index, :, horizon_index].copy()
-                    if modality in disabled:
-                        values[:] = np.nan
-                    else:
-                        values[~self._available_mask(frame, modality).to_numpy()] = np.nan
-                    score_frame[modality] = values
-                fused[bootstrap_index, :, horizon_index] = weighted_score_fusion(
-                    score_frame, MODALITY_WEIGHTS
-                ).to_numpy()
+        fused = self._vectorized_score_fusion(frame, modality_distributions, disabled)
         return fused, modality_distributions
 
     def predict_batch(self, frame: pd.DataFrame, disabled_modalities: Iterable[str] = ()) -> pd.DataFrame:
