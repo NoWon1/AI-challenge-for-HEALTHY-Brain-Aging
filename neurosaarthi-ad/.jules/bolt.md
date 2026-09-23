@@ -18,3 +18,7 @@
 ## 2026-09-17 - Catching Duplicated Logic Bottlenecks
 **Learning:** When addressing severe performance bottlenecks (like replacing O(N^2) loops with vectorized NumPy arrays for C-index), identical slow logic often exists in multiple fallback implementations across different modules (e.g. `cox_boost.py` vs `survival_metrics.py`). Optimizing one location without checking for duplicated code leaves remaining bottlenecks intact.
 **Action:** Always search the codebase for duplicate fallback implementations when fixing an algorithmic complexity issue, ensuring that all similar patterns (such as pure-numpy fallbacks) are uniformly vectorized.
+
+## 2026-09-18 - O(N) penalty from loop-based structured array initialization
+**Learning:** Initializing structured numpy arrays (like those required by `sksurv`) using `np.array(list(zip(events, times)), dtype=...)` or list comprehensions introduces significant O(N) overhead due to dropping into Python iteration.
+**Action:** Always replace explicit `zip` and list comprehensions during structured array creation with vectorized pre-allocation and assignment: `res = np.empty(N, dtype=...); res['event'] = events; res['time'] = times`. This results in a massive speedup (e.g., ~20x faster on large arrays).

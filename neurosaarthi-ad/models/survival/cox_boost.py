@@ -26,10 +26,11 @@ from sklearn.preprocessing import StandardScaler
 
 def _to_structured(time: np.ndarray, event: np.ndarray) -> np.ndarray:
     """Convert parallel arrays to scikit-survival structured array."""
-    return np.array(
-        [(bool(e), float(t)) for e, t in zip(event, time)],
-        dtype=[("event", bool), ("time", float)],
-    )
+    # ⚡ Bolt: Vectorized empty allocation and assignment replaces slow O(N) list comprehension with zip
+    result = np.empty(len(event), dtype=[("event", bool), ("time", float)])
+    result["event"] = event.astype(bool)
+    result["time"] = time.astype(float)
+    return result
 
 
 @dataclass
