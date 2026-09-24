@@ -708,13 +708,28 @@ class DemoRuntime:
         years = np.array([0.0, 1.0, 2.0, 3.0, 5.0])
         centers = np.concatenate([[float(profile_frame.iloc[0]["cognitive_score"])], centers])
         widths = [0.25]
-        for year in years[1:]:
-            twin_values = []
-            for _, group in twin_trajectories.groupby("participant_id"):
-                ordered = group.sort_values("year")
-                twin_values.append(float(np.interp(year, ordered["year"], ordered["cognitive_score"])))
-            twin_dispersion = float(np.std(twin_values)) if len(twin_values) > 1 else 0.0
-            widths.append(float(np.sqrt(self.trajectory_residual_band**2 + (0.35 * twin_dispersion) ** 2)))
+
+        # ⚡ Bolt: Vectorize multi-point interpolation across twin groups avoiding slow O(N*M) Pandas groupby/sort loops
+        sorted_twins = twin_trajectories.sort_values(["participant_id", "year"])
+        ids = sorted_twins["participant_id"].to_numpy()
+        years_arr = sorted_twins["year"].to_numpy()
+        scores_arr = sorted_twins["cognitive_score"].to_numpy()
+
+        if len(ids) == 0:
+            for _ in years[1:]:
+                widths.append(self.trajectory_residual_band)
+        else:
+            boundaries = np.where(ids[:-1] != ids[1:])[0] + 1
+            years_split = np.split(years_arr, boundaries)
+            scores_split = np.split(scores_arr, boundaries)
+
+            for year in years[1:]:
+                twin_values = np.array([
+                    np.interp(year, y, s) for y, s in zip(years_split, scores_split)
+                ])
+                twin_dispersion = float(np.std(twin_values)) if len(twin_values) > 1 else 0.0
+                widths.append(float(np.sqrt(self.trajectory_residual_band**2 + (0.35 * twin_dispersion) ** 2)))
+
         centers = np.clip(centers, 0.0, 30.0)
         widths_array = np.asarray(widths)
         return pd.DataFrame(
