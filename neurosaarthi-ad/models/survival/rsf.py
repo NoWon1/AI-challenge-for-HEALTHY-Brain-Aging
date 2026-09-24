@@ -51,10 +51,10 @@ class RandomSurvivalForestModel:
             clean_frame = frame.dropna(subset=[time_col, event_col, *self.feature_columns])
             
             # Create structured array
-            y = np.array(
-                list(zip(clean_frame[event_col].astype(bool), clean_frame[time_col])),
-                dtype=[('event', '?'), ('time', '<f8')]
-            )
+            # ⚡ Bolt: Vectorized empty allocation and assignment replaces slow O(N) list comprehension with zip
+            y = np.empty(len(clean_frame), dtype=[('event', '?'), ('time', '<f8')])
+            y['event'] = clean_frame[event_col].astype(bool).values
+            y['time'] = clean_frame[time_col].astype(float).values
             
             self.model.fit(clean_frame[self.feature_columns], y)
         else:
@@ -161,10 +161,10 @@ class RandomSurvivalForestModel:
         clean_frame = frame.dropna(subset=[time_col, event_col, *self.feature_columns])
         
         if SKSURV_AVAILABLE and isinstance(self.model, RandomSurvivalForest):
-            y = np.array(
-                list(zip(clean_frame[event_col].astype(bool), clean_frame[time_col])),
-                dtype=[('event', '?'), ('time', '<f8')]
-            )
+            # ⚡ Bolt: Vectorized empty allocation and assignment replaces slow O(N) list comprehension with zip
+            y = np.empty(len(clean_frame), dtype=[('event', '?'), ('time', '<f8')])
+            y['event'] = clean_frame[event_col].astype(bool).values
+            y['time'] = clean_frame[time_col].astype(float).values
         else:
             y = clean_frame[event_col]
             
