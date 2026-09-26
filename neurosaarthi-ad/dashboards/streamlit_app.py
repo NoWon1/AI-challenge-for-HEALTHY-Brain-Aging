@@ -10,10 +10,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import html
 import re
 import altair as alt
-import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -101,17 +99,7 @@ def _optional_slider(
     return st.sidebar.slider(label, minimum, maximum, value, step, key=key)
 
 
-def _profile_controls() -> ParticipantProfile:
-    st.sidebar.markdown("## Synthetic participant")
-    st.sidebar.caption(
-        "Choose a fictional case, then edit the evidence available to the model."
-    )
-    preset_name = st.sidebar.selectbox(
-        "Starting case", list(PRESET_PROFILES), key="preset_case"
-    )
-    base = PRESET_PROFILES[preset_name]
-    prefix = base.participant_id
-
+def _render_demographics_controls(base: ParticipantProfile, prefix: str) -> tuple[float, str, float, str]:
     age = st.sidebar.slider("Age", 48, 90, int(base.age), 1, key=f"{prefix}-age")
     sex = st.sidebar.selectbox(
         "Sex",
@@ -133,7 +121,10 @@ def _profile_controls() -> ParticipantProfile:
         index=0 if base.urban_rural == "urban" else 1,
         key=f"{prefix}-setting",
     )
+    return float(age), str(sex), float(education), str(setting)
 
+
+def _render_cognition_controls(base: ParticipantProfile, prefix: str) -> tuple[float, float, float]:
     with st.sidebar.expander("Cognition", expanded=True):
         cognition = st.slider(
             "Cognitive composite (0–30)",
@@ -159,7 +150,10 @@ def _profile_controls() -> ParticipantProfile:
             0.05,
             key=f"{prefix}-executive",
         )
+    return float(cognition), float(memory), float(executive)
 
+
+def _render_mri_controls(base: ParticipantProfile, prefix: str) -> tuple[float | None, float | None]:
     with st.sidebar.expander("MRI"):
         mri_available = st.checkbox(
             "MRI features available",
@@ -184,7 +178,10 @@ def _profile_controls() -> ParticipantProfile:
             0.1,
             f"{prefix}-wmh",
         )
+    return hippocampal, wmh
 
+
+def _render_blood_controls(base: ParticipantProfile, prefix: str) -> tuple[float | None, float | None]:
     with st.sidebar.expander("Blood biochemistry"):
         blood_available = st.checkbox(
             "Blood features available",
@@ -209,7 +206,10 @@ def _profile_controls() -> ParticipantProfile:
             0.1,
             f"{prefix}-crp",
         )
+    return hba1c, crp
 
+
+def _render_oct_controls(base: ParticipantProfile, prefix: str) -> tuple[float | None, float | None]:
     with st.sidebar.expander("OCT / OCTA"):
         oct_available = st.checkbox(
             "Retinal features available",
@@ -234,7 +234,10 @@ def _profile_controls() -> ParticipantProfile:
             0.5,
             f"{prefix}-vessel",
         )
+    return rnfl, vessel
 
+
+def _render_genomics_controls(base: ParticipantProfile, prefix: str) -> tuple[float | None, float | None]:
     with st.sidebar.expander("Genomics · GenomeIndia-aware context"):
         genomics_available = st.checkbox(
             "Genomic features available",
@@ -261,16 +264,36 @@ def _profile_controls() -> ParticipantProfile:
         else:
             apoe = None
             ancestry = None
+    return apoe, ancestry
+
+
+def _profile_controls() -> ParticipantProfile:
+    st.sidebar.markdown("## Synthetic participant")
+    st.sidebar.caption(
+        "Choose a fictional case, then edit the evidence available to the model."
+    )
+    preset_name = st.sidebar.selectbox(
+        "Starting case", list(PRESET_PROFILES), key="preset_case"
+    )
+    base = PRESET_PROFILES[preset_name]
+    prefix = base.participant_id
+
+    age, sex, education, setting = _render_demographics_controls(base, prefix)
+    cognition, memory, executive = _render_cognition_controls(base, prefix)
+    hippocampal, wmh = _render_mri_controls(base, prefix)
+    hba1c, crp = _render_blood_controls(base, prefix)
+    rnfl, vessel = _render_oct_controls(base, prefix)
+    apoe, ancestry = _render_genomics_controls(base, prefix)
 
     return profile_with(
         base,
-        age=float(age),
+        age=age,
         sex=sex,
-        education_years=float(education),
+        education_years=education,
         urban_rural=setting,
-        cognitive_score=float(cognition),
-        memory_score=float(memory),
-        executive_score=float(executive),
+        cognitive_score=cognition,
+        memory_score=memory,
+        executive_score=executive,
         hippocampal_volume_mm3=hippocampal,
         wmh_burden_ml=wmh,
         hba1c_percent=hba1c,
