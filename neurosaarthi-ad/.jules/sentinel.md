@@ -15,3 +15,8 @@
 **Vulnerability:** Unescaped dynamic strings in `st.warning` allowed Markdown injection (hyperlinks, image tracking pixels).
 **Learning:** Streamlit's `st.warning` parses Markdown by default. While it doesn't execute `<script>` tags, it is vulnerable to Markdown injection through unescaped dynamic strings.
 **Prevention:** Sanitize text dynamically inserted into warnings at the source boundary using regex to escape CommonMark structural tokens (`\`, `` ` ``, `*`, `_`, `{`, `}`, `[`, `]`, `(`, `)`, `#`, `+`, `-`, `.`, `!`, `~`, `|`, `<`, `>`). Enclose dynamic identifiers in monospace code spans to neutralize hyperlink and tracking-pixel injection.
+
+## 2026-10-27 - [TOCTOU File Permission Race Condition]
+**Vulnerability:** A Time-of-Check to Time-of-Use (TOCTOU) file permission race condition was identified in `scripts/export_models.py` when exporting sensitive model artifacts via `joblib.dump()`.
+**Learning:** Saving a file with default permissions (via process `umask`) and later tightening them using `os.chmod()` leaves a brief window where the file is readable by other local processes.
+**Prevention:** Implement and use a secure context manager that temporarily sets the process `umask` (e.g., to `0o077`) before file creation. This ensures files are created natively with strict permissions, eliminating the TOCTOU window.
