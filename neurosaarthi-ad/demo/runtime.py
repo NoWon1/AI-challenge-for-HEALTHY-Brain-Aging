@@ -272,10 +272,10 @@ class _LegacyDiscreteTimeRiskEnsemble:
         for model_index, model in enumerate(self.models):
             survival = np.ones(len(frame), dtype=float)
             horizon_position = 0
+            base_interval_frame = frame[self.feature_columns].copy()
             for year in range(1, 6):
-                interval_frame = frame[self.feature_columns].copy()
-                interval_frame["interval_year"] = float(year)
-                hazard = model.predict_proba(interval_frame)[:, 1]
+                base_interval_frame["interval_year"] = float(year)
+                hazard = model.predict_proba(base_interval_frame)[:, 1]
                 hazard = np.clip(hazard, 0.001, 0.95)
                 survival *= 1.0 - hazard
                 if year in HORIZONS:
@@ -363,13 +363,13 @@ class GBMDiscreteTimeRiskEnsemble:
         for model_index, model in enumerate(self.models):
             survival = np.ones(len(frame), dtype=float)
             horizon_position = 0
+            base_interval_frame = frame[self.feature_columns].copy()
             for year in range(1, 6):
-                interval_frame = frame[self.feature_columns].copy()
-                interval_frame["interval_year"] = float(year)
+                base_interval_frame["interval_year"] = float(year)
                 if hasattr(model, "predict_risk"):
-                    hazard = model.predict_risk(interval_frame)
+                    hazard = model.predict_risk(base_interval_frame)
                 else:
-                    hazard = model.predict_proba(interval_frame)[:, 1]
+                    hazard = model.predict_proba(base_interval_frame)[:, 1]
                 hazard = np.clip(hazard, 0.001, 0.95)
                 survival *= 1.0 - hazard
                 if year in HORIZONS:
