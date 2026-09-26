@@ -10,3 +10,4 @@ __pycache__/
 *.nii.gz
 .env
 .env.local
+hf_upload/
