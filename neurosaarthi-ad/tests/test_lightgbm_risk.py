@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import pytest
+import unittest.mock as mock
+import warnings
 
 from models.classification.lightgbm_risk import GBMRiskClassifier
 
@@ -36,3 +38,44 @@ def test_gbm_handles_nan_gracefully():
     model.fit(df)
     preds = model.predict_risk(df)
     assert not preds.isna().any()
+
+def test_gbm_shap_values():
+    df = _make_synthetic()
+    model = GBMRiskClassifier(feature_columns=['f1', 'f2', 'f3'])
+    model.fit(df)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        shap_vals = model.shap_values(df)
+
+    assert shap_vals is not None
+    assert shap_vals.shape == (len(df), 3)
+
+def test_gbm_shap_values_unavailable():
+    df = _make_synthetic()
+    model = GBMRiskClassifier(feature_columns=['f1', 'f2', 'f3'])
+    model.fit(df)
+
+    with mock.patch('models.classification.lightgbm_risk.SHAP_AVAILABLE', False):
+        with pytest.warns(UserWarning, match="shap library is not installed"):
+            shap_vals = model.shap_values(df)
+            assert shap_vals is None
+
+def test_gbm_shap_values_not_fitted():
+    df = _make_synthetic()
+    model = GBMRiskClassifier(feature_columns=['f1', 'f2', 'f3'])
+
+    with pytest.raises(RuntimeError, match="Classifier must be fitted before getting SHAP values"):
+        model.shap_values(df)
+
+def test_gbm_shap_values_calibrated():
+    df = _make_synthetic()
+    model = GBMRiskClassifier(feature_columns=['f1', 'f2', 'f3'], calibrate=True)
+    model.fit(df)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        shap_vals = model.shap_values(df)
+
+    assert shap_vals is not None
+    assert shap_vals.shape == (len(df), 3)
