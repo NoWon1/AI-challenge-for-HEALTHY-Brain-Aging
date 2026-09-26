@@ -29,13 +29,11 @@ class AdniAdapter(CohortAdapter):
         root = Path(self.data_dir)
         merge_path = root / 'ADNIMERGE.csv'
         
-        if not merge_path.exists():
-            raise FileNotFoundError(
-                f'ADNIMERGE.csv not found at {merge_path}. '
-                'Download from https://adni.loni.usc.edu/ and place in data/raw/adni/'
-            )
-        
-        raw = pd.read_csv(merge_path, low_memory=False)
+        raw = self._load_csv_or_raise(
+            merge_path,
+            f'ADNIMERGE.csv not found at {merge_path}. Download from https://adni.loni.usc.edu/ and place in data/raw/adni/',
+            low_memory=False
+        )
         
         # Build participants table
         participants = self._build_participants(raw)
@@ -149,42 +147,5 @@ class AdniAdapter(CohortAdapter):
         res = pd.concat(dfs, ignore_index=True)
         res = res.sort_values(['_row_idx', '_feat_idx']).reset_index(drop=True)
         res = res.drop(columns=['_row_idx', '_feat_idx'])
-        # ⚡ Bolt: Vectorized feature extraction replaces slow .iterrows() loop, resulting in ~16x speedup.
-        # We track `_row_idx` and `_feat_idx` to preserve the original insertion order before sorting.
-        dfs = []
-        for feat_idx, (source_col, (modality, feature_name, unit)) in enumerate(feature_map.items()):
-            if source_col not in raw.columns:
-                continue
-
-            valid = raw[raw[source_col].notna()].copy()
-            if valid.empty:
-                continue
-
-            df = pd.DataFrame({
-                'feature_row_id': valid['visit_id'] + '-' + feature_name,
-                'participant_id': valid['participant_id'],
-                'visit_id': valid['visit_id'],
-                'cohort': self.cohort_name,
-                'modality': modality,
-                'feature_name': feature_name,
-                'value': valid[source_col].astype(float),
-                'unit': unit,
-                'source_variable': source_col,
-                'qc_flag': 'pass',
-                'derived': False,
-                '_row_idx': valid.index,
-                '_feat_idx': feat_idx
-            })
-            dfs.append(df)
-
-        if not dfs:
-            return pd.DataFrame(columns=[
-                'feature_row_id', 'participant_id', 'visit_id', 'cohort',
-                'modality', 'feature_name', 'value', 'unit', 'source_variable',
-                'qc_flag', 'derived'
-            ])
-
-        res = pd.concat(dfs, ignore_index=True)
-        res = res.sort_values(['_row_idx', '_feat_idx']).drop(columns=['_row_idx', '_feat_idx'])
-        return res.sort_values(['participant_id', 'visit_id']).reset_index(drop=True)
+        return res
     

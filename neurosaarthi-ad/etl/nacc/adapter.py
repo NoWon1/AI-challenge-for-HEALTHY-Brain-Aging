@@ -26,13 +26,11 @@ class NaccAdapter(CohortAdapter):
         root = Path(self.data_dir)
         uds_path = root / 'investigator_nacc.csv'
         
-        if not uds_path.exists():
-            raise FileNotFoundError(
-                f'NACC UDS data not found at {uds_path}. '
-                'Please place the standard NACC investigator file here.'
-            )
-            
-        raw = pd.read_csv(uds_path, low_memory=False)
+        raw = self._load_csv_or_raise(
+            uds_path,
+            f'NACC UDS data not found at {uds_path}. Please place the standard NACC investigator file here.',
+            low_memory=False
+        )
         
         participants = self._build_participants(raw)
         visits = self._build_visits(raw)
