@@ -269,12 +269,13 @@ class _LegacyDiscreteTimeRiskEnsemble:
         if not self.models:
             raise RuntimeError("DiscreteTimeRiskEnsemble must be fitted before prediction")
         output = np.zeros((len(self.models), len(frame), len(HORIZONS)), dtype=float)
+        base_frame = frame[self.feature_columns].copy()
         for model_index, model in enumerate(self.models):
             survival = np.ones(len(frame), dtype=float)
             horizon_position = 0
             for year in range(1, 6):
-                interval_frame = frame[self.feature_columns].copy()
-                interval_frame["interval_year"] = float(year)
+                base_frame["interval_year"] = float(year)
+                interval_frame = base_frame
                 hazard = model.predict_proba(interval_frame)[:, 1]
                 hazard = np.clip(hazard, 0.001, 0.95)
                 survival *= 1.0 - hazard
@@ -360,12 +361,13 @@ class GBMDiscreteTimeRiskEnsemble:
         if not self.models:
             raise RuntimeError("GBMDiscreteTimeRiskEnsemble must be fitted before prediction")
         output = np.zeros((len(self.models), len(frame), len(HORIZONS)), dtype=float)
+        base_frame = frame[self.feature_columns].copy()
         for model_index, model in enumerate(self.models):
             survival = np.ones(len(frame), dtype=float)
             horizon_position = 0
             for year in range(1, 6):
-                interval_frame = frame[self.feature_columns].copy()
-                interval_frame["interval_year"] = float(year)
+                base_frame["interval_year"] = float(year)
+                interval_frame = base_frame
                 if hasattr(model, "predict_risk"):
                     hazard = model.predict_risk(interval_frame)
                 else:
