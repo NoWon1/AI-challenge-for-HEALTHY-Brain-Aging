@@ -17,27 +17,32 @@ os.chmod(OUT_DIR, 0o700)
 bundle = generate_demo_cohort(seed=42, n_per_cohort=120)
 runtime = build_demo_runtime(bundle=bundle, n_bootstrap=1)
 
+# Helper function to securely save objects
+def secure_save(obj, path, is_json=False):
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w' if is_json else 'wb') as f:
+        if is_json:
+            json.dump(obj, f, indent=2)
+        else:
+            joblib.dump(obj, f)
+
 # 2. Save classification pipelines (LightGBM)
 for modality, ensemble in getattr(runtime, 'risk_models', {}).items():
     path = OUT_DIR / f"risk_{modality.replace('+', '').replace('/', '_').replace(' ', '_')}.joblib"
-    joblib.dump(ensemble, path)
-    os.chmod(path, 0o600)
+    secure_save(ensemble, path)
 
 # 3. Save survival models (RSF / CoxBoost)
 for model_name, model in getattr(runtime, 'survival_models', {}).items():
     path = OUT_DIR / f"survival_{model_name}.joblib"
-    joblib.dump(model, path)
-    os.chmod(path, 0o600)
+    secure_save(model, path)
 
 # 4. Save the cognitive-trajectory regressor
 path = OUT_DIR / "progression_regressor.joblib"
-joblib.dump(runtime.trajectory_model, path)
-os.chmod(path, 0o600)
+secure_save(runtime.trajectory_model, path)
 
 # 5. Save the twin-lite retrieval index
 path = OUT_DIR / "twinlite_retriever.joblib"
-joblib.dump(runtime.twin_retriever, path)
-os.chmod(path, 0o600)
+secure_save(runtime.twin_retriever, path)
 
 # 6. Save config / feature metadata
 config = {
@@ -63,8 +68,6 @@ config = {
     "python_requires": ">=3.10",
 }
 path = OUT_DIR / "config.json"
-with open(path, "w") as f:
-    json.dump(config, f, indent=2)
-os.chmod(path, 0o600)
+secure_save(config, path, is_json=True)
 
 print(f" All artifacts saved to {OUT_DIR.resolve()}")
