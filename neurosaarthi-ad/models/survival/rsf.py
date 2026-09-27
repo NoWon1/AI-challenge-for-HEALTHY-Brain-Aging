@@ -105,22 +105,27 @@ class RandomSurvivalForestModel:
             # Dummy output
             return pd.DataFrame(index=frame.index)
             
+        if len(frame) == 0:
+            return pd.DataFrame(index=frame.index)
+
         x = frame[self.feature_columns].fillna(frame[self.feature_columns].median())
         surv_funcs = self.model.predict_survival_function(x)
-        
-        # surv_funcs is an array of StepFunction objects
-        results = {}
-        for i, sf in enumerate(surv_funcs):
-            if time_points is not None:
-                results[frame.index[i]] = sf(time_points)
-            else:
-                results[frame.index[i]] = sf(sf.x)
-                if i == 0 and time_points is None:
-                    time_points = sf.x
-                    
-        df = pd.DataFrame(results).T
+
         if time_points is not None:
-            df.columns = time_points
+            # Handle requested times outside the fitted survival-time range
+            min_time = surv_funcs[0].x.min()
+            max_time = surv_funcs[0].x.max()
+            safe_time_points = np.clip(time_points, min_time, max_time)
+
+            # Use array comprehension to build a matrix directly instead of a dict-to-DataFrame transpose
+            surv_matrix = np.array([sf(safe_time_points) for sf in surv_funcs])
+            df = pd.DataFrame(surv_matrix, index=frame.index, columns=time_points)
+        else:
+            time_points = surv_funcs[0].x
+            # Use array comprehension to build a matrix directly instead of a dict-to-DataFrame transpose
+            surv_matrix = np.array([sf(time_points) for sf in surv_funcs])
+            df = pd.DataFrame(surv_matrix, index=frame.index, columns=time_points)
+
         return df
 
     def concordance_index(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> float:
