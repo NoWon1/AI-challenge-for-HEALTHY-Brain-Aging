@@ -78,10 +78,11 @@ def concordance_index(
 
 
 def _to_sksurv_format(event_times: np.ndarray, events: np.ndarray) -> np.ndarray:
-    return np.array(
-        [(e, t) for e, t in zip(events, event_times)],
-        dtype=[("event", bool), ("time", float)]
-    )
+    # ⚡ Bolt: Vectorized pre-allocation replaces slow list comprehension and zip() for structured arrays
+    y = np.empty(len(events), dtype=[("event", bool), ("time", float)])
+    y["event"] = events
+    y["time"] = event_times
+    return y
 
 
 def time_dependent_auc(
