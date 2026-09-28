@@ -24,13 +24,11 @@ class AiblAdapter(CohortAdapter):
         root = Path(self.data_dir)
         clinical_path = root / 'aibl_clinical.csv'
         
-        if not clinical_path.exists():
-            raise FileNotFoundError(
-                f'AIBL clinical data not found at {clinical_path}. '
-                'Please place the standard AIBL CSV file here.'
-            )
-            
-        raw = pd.read_csv(clinical_path, low_memory=False)
+        raw = self._load_csv_or_raise(
+            clinical_path,
+            f'AIBL clinical data not found at {clinical_path}. Please place the standard AIBL CSV file here.',
+            low_memory=False
+        )
         
         participants = self._build_participants(raw)
         visits = self._build_visits(raw)

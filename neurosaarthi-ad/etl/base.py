@@ -24,6 +24,14 @@ class CohortAdapter(ABC):
     def __init__(self, raw_dir: str | Path):
         self.raw_dir = Path(raw_dir)
 
+    def _load_csv_or_raise(self, path: Path, error_message: str, **kwargs) -> pd.DataFrame:
+        """Helper to validate path existence before loading CSV."""
+        if not path.exists():
+            raise FileNotFoundError(error_message)
+        return pd.read_csv(path, **kwargs)
+
+
+
     @abstractmethod
     def extract(self) -> CohortTables:
         """Return data mapped into the common data model."""
