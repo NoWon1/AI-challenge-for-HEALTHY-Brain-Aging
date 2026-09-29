@@ -10,8 +10,7 @@ from demo.runtime import build_demo_runtime
 from demo.synthetic import generate_demo_cohort
 
 OUT_DIR = Path("hf_upload")
-OUT_DIR.mkdir(exist_ok=True)
-os.chmod(OUT_DIR, 0o700)
+OUT_DIR.mkdir(mode=0o700, exist_ok=True)
 
 # 1. Build the runtime (trains all sub-models on synthetic data)
 bundle = generate_demo_cohort(seed=42, n_per_cohort=120)
