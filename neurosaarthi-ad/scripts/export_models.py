@@ -10,6 +10,7 @@ from demo.runtime import build_demo_runtime
 from demo.synthetic import generate_demo_cohort
 
 OUT_DIR = Path("hf_upload")
+# Defense-in-depth: Set secure permissions at creation to prevent TOCTOU race conditions
 OUT_DIR.mkdir(mode=0o700, exist_ok=True)
 
 # 1. Build the runtime (trains all sub-models on synthetic data)
