@@ -664,17 +664,20 @@ class DemoRuntime:
         return result
 
     def _build_missingness(self) -> pd.DataFrame:
-        rows = []
-        for cohort, group in self.baseline.groupby("cohort", sort=False):
-            for modality, features in MODALITY_FEATURES.items():
-                rows.append(
-                    {
-                        "cohort": cohort,
-                        "modality": modality,
-                        "missing_rate": float(1.0 - group[features].notna().any(axis=1).mean()),
-                    }
-                )
-        return pd.DataFrame(rows)
+        # ⚡ Bolt: Vectorized missingness calculation to avoid O(N*M) looping overhead
+        presence_cols = {
+            modality: self.baseline[features].notna().any(axis=1)
+            for modality, features in MODALITY_FEATURES.items()
+        }
+        presence_df = pd.DataFrame(presence_cols)
+        presence_df["cohort"] = self.baseline["cohort"]
+
+        rates = presence_df.groupby("cohort", sort=False).mean()
+        missing_rates = 1.0 - rates
+
+        result = missing_rates.stack().reset_index()
+        result.columns = pd.Index(["cohort", "modality", "missing_rate"])
+        return result
 
     def _build_quality_checks(self) -> pd.DataFrame:
         canonical_units = {
