@@ -78,10 +78,27 @@ def _inject_styles() -> None:
     )
 
 
+class ImmutableRuntimeProxy:
+    """Read-only proxy to prevent cross-session state corruption in Streamlit cache."""
+    def __init__(self, obj):
+        object.__setattr__(self, "_obj", obj)
+
+    def __getattr__(self, name):
+        return getattr(self._obj, name)
+
+    def __setattr__(self, name, value):
+        raise TypeError(f"Cannot modify cached resource attribute: {name}")
+
+    def __delattr__(self, name):
+        raise TypeError(f"Cannot delete cached resource attribute: {name}")
+
+
 @st.cache_resource(show_spinner="Preparing the synthetic seven-cohort workbench…")
 def _load_runtime():
-    return build_demo_runtime(
-        generate_demo_cohort(seed=42, n_per_cohort=120), n_bootstrap=12
+    return ImmutableRuntimeProxy(
+        build_demo_runtime(
+            generate_demo_cohort(seed=42, n_per_cohort=120), n_bootstrap=12
+        )
     )
 
 
