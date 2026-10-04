@@ -601,13 +601,17 @@ class DemoRuntime:
             "external_validation": "SANSCOG external validation",
         }
         rows = []
-        for role, group in self.validation_predictions.groupby("role", sort=False):
+        # ⚡ Bolt: Extract pre-grouped stats into a Series to avoid O(N) looping overhead
+        # from re-calculating means on Pandas DataFrame slices inside the loop
+        grouped = self.validation_predictions.groupby("role", sort=False)
+        event_rates = grouped["event_by_3y"].mean()
+        for role, group in grouped:
             metrics = _safe_metrics(group["event_by_3y"], group["risk_3y"])
             rows.append(
                 {
                     "validation_set": labels[role],
                     "participants": len(group),
-                    "event_rate": float(group["event_by_3y"].mean()),
+                    "event_rate": float(event_rates[role]),
                     **metrics,
                 }
             )
@@ -631,14 +635,18 @@ class DemoRuntime:
         }
         rows = []
         for dimension, column in dimensions.items():
-            for value, group in india.groupby(column, observed=True):
+            # ⚡ Bolt: Extract pre-grouped stats into a Series to avoid O(N) looping overhead
+            # from re-calculating means on Pandas DataFrame slices inside the loop
+            grouped = india.groupby(column, observed=True)
+            event_rates = grouped["event_by_3y"].mean()
+            for value, group in grouped:
                 metrics = _safe_metrics(group["event_by_3y"], group["risk_3y"])
                 rows.append(
                     {
                         "dimension": dimension,
                         "group": str(value),
                         "participants": len(group),
-                        "event_rate": float(group["event_by_3y"].mean()),
+                        "event_rate": float(event_rates[value]),
                         **metrics,
                     }
                 )
