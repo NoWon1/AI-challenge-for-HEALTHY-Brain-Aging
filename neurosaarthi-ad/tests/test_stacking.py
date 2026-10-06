@@ -1,8 +1,7 @@
 import numpy as np
-import pandas as pd
-import pytest
 
 from models.fusion.stacking import StackedFusionModel
+
 
 def _make_predictions(n=50, seed=42):
     rng = np.random.default_rng(seed)

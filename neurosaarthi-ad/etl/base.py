@@ -6,8 +6,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 
 @dataclass(frozen=True)

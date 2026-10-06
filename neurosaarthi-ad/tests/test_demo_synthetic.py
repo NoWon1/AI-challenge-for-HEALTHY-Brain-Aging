@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 from data_contracts.schema import validate_columns
@@ -15,7 +16,11 @@ def test_default_demo_cohort_has_840_longitudinal_participants():
     visit_counts = visits.groupby("participant_id").size()
     assert visit_counts.between(3, 6).all()
     # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop
-    assert visits.groupby("participant_id", sort=False)["baseline_days"].diff().fillna(0).ge(0).all()
+    groups = visits["participant_id"].to_numpy()
+    values = visits["baseline_days"].to_numpy()
+    same_group = groups[1:] == groups[:-1]
+    is_monotonic = values[1:][same_group] >= values[:-1][same_group]
+    assert np.all(is_monotonic)
 
     for name, frame in {
         "participants": bundle.tables.participants,

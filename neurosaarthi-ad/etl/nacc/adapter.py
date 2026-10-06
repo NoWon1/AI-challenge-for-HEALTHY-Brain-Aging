@@ -4,10 +4,13 @@ Parses NACC UDS (Uniform Data Set) files into the NeuroSaarthi-AD
 common data model. Expected files: NACC investigator CSV.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
 from etl.base import CohortAdapter, CohortTables
 
 _NACC_DX_MAP = {

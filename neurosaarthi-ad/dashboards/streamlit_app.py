@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
+import html
 import sys
 from pathlib import Path
-import html
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import html
 import re
+
 import altair as alt
-import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -24,7 +23,6 @@ from demo.runtime import (
     profile_with,
 )
 from demo.synthetic import generate_demo_cohort
-
 
 COLORS = {
     "teal": "#0F5C5B",

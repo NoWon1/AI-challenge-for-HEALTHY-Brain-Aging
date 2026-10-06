@@ -1,5 +1,7 @@
 import pandas as pd
-from features.base import pivot_modality_features, add_missingness_indicators
+
+from features.base import pivot_modality_features
+
 
 def test_pivot_modality_features():
     data = {

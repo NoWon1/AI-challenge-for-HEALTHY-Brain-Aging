@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 
@@ -17,14 +18,18 @@ def add_baseline_offsets(visits: pd.DataFrame, participant_col: str = "participa
 
 def require_monotonic_visits(visits: pd.DataFrame, participant_col: str = "participant_id", order_col: str = "visit_index") -> None:
     # ⚡ Bolt: Fast-path vectorised monotonicity check avoids slow loops for the happy path
-    if visits.empty:
+    if len(visits) <= 1:
         return
 
-    if visits.groupby(participant_col, sort=False)[order_col].diff().fillna(0).ge(0).all():
-        return
+    groups = visits[participant_col].to_numpy()
+    values = visits[order_col].to_numpy()
 
-    for participant_id, group in visits.groupby(participant_col, sort=False):
-        values = group[order_col].tolist()
-        if values != sorted(values):
-            raise ValueError("Visits are not monotonic for one or more participants")
+    # Identify consecutive records belonging to the same participant
+    same_group = groups[1:] == groups[:-1]
+
+    # Evaluate monotonicity only across intra-group transitions
+    is_monotonic = values[1:][same_group] >= values[:-1][same_group]
+
+    if not np.all(is_monotonic):
+        raise ValueError("Visits are not monotonic for one or more participants")
 

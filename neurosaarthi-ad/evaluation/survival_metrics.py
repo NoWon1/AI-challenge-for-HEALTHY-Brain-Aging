@@ -9,6 +9,8 @@ try:
     from sksurv.metrics import (
         concordance_index_censored,
         cumulative_dynamic_auc,
+    )
+    from sksurv.metrics import (
         integrated_brier_score as sksurv_ibs,
     )
     HAS_SKSURV = True

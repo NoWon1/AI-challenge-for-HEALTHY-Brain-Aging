@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 from evaluation.explainability import SHAPExplainer
+
 
 class MockModel:
     def __init__(self):
