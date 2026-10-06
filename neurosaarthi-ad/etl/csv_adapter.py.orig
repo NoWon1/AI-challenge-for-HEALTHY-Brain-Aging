@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from data_contracts.schema import validate_columns, get_allowed_columns
+from data_contracts.schema import validate_columns
 from etl.base import CohortAdapter, CohortTables
 
 
@@ -22,8 +22,5 @@ class CsvCohortAdapter(CohortAdapter):
             path = (Path(self.raw_dir) / f"{table_name}.csv").resolve()
             frame = pd.read_csv(path)
             validate_columns(table_name, list(frame.columns))
-            allowed_columns = get_allowed_columns(table_name)
-            frame = frame[[col for col in frame.columns if col in allowed_columns]]
             tables[table_name] = frame
         return CohortTables(**tables)
-

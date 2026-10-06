@@ -20,3 +20,8 @@
 **Vulnerability:** A Time-of-Check to Time-of-Use (TOCTOU) file permission race condition existed in `export_models.py` where a directory was created with default permissions before `os.chmod()` was applied.
 **Learning:** In the split-second between `mkdir(exist_ok=True)` and `os.chmod(OUT_DIR, 0o700)`, the directory is accessible with potentially overly permissive default permissions, creating a window for data exposure or tampering if sensitive artifacts are written concurrently or if the script crashes before `chmod`.
 **Prevention:** Always enforce access restrictions exactly at the time of creation by setting the permission mode natively during the filesystem operation (e.g., using `Path.mkdir(mode=0o700, exist_ok=True)` or passing restrictive flags and modes to `os.open()`).
+
+## 2026-10-29 - [Strict Schema Allowlisting in ETL Adapters]
+**Vulnerability:** ETL adapters (like `CsvCohortAdapter`) used `validate_columns` to check for missing required columns but did not actively drop or reject unvalidated/extraneous columns present in the input files (CWE-20/CWE-117).
+**Learning:** Extraneous columns could include raw metadata, administrative codes, or sensitive unstructured clinical notes that may bypass validations and inadvertently persist in downstream feature matrices or cached states.
+**Prevention:** Implemented strict schema column allowlisting. The `schema.py` now exports a `get_allowed_columns` method that constructs the exact set of expected columns (required + recommended + primary keys) from the data contract. `CsvCohortAdapter` explicitly filters ingested DataFrames to retain only these allowed columns, silently dropping everything else.
