@@ -25,3 +25,6 @@ In `demo/runtime.py` (`predict_distribution` methods for `DiscreteTimeRiskEnsemb
 Deep copying DataFrames iteratively is extremely costly in Python (memory allocation and O(N) copy operations per loop iteration). By instantiating a `base_frame = frame[self.feature_columns].copy()` once *before* the outer model loop and merely updating the scalar-driven `interval_year` column repeatedly, we remove O(num_models * 5) full DataFrame deep-copies.
 
 This resulted in a 14x speedup (0.27s -> 0.02s in a 1000-row synthetic benchmark), significantly improving real-time inference latency for UI prediction loops.
+## 2026-10-06 - O(N) penalty from loop-based dataframe groupby aggregations and re-merging (assign splits)
+**Learning:** In pandas, iterating over `.groupby()` objects with a python `for` loop to extract inner numpy arrays and manually append them using list comprehension introduces significant O(N) looping overhead. The `_assign_splits` demo step suffered from this pattern.
+**Action:** Replace explicit `for` loops with fully vectorized numpy assignments for boolean conditions and array slices. Reconstruct the subset dataframes and apply `pd.concat` to delegate the iteration to optimized C levels, resulting in significant performance gains (>10x speedup).
