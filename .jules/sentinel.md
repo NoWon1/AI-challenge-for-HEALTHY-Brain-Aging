@@ -25,3 +25,8 @@
 **Vulnerability:** Streamlit's `st.warning`, `st.error`, and similar functions render Markdown by default. Passing unescaped dynamic strings (like runtime warnings) to these functions can lead to Markdown injection attacks, such as hyperlink spoofing or tracking pixels.
 **Learning:** Security gaps can exist in UI boundary frameworks when they apply default formatting without explicit sanitization.
 **Prevention:** Strictly sanitize text at the creation boundary (e.g., using `re.sub(r"([\\`*_{}\[\]()#+\-.!~|<>])", r"\\\1", str(val))` to escape CommonMark structural tokens) before passing the dynamic string to Streamlit components that render Markdown.
+
+## 2026-10-06 - [Preventing Cross-Session State Bleeding in Streamlit Cached Resources]
+**Vulnerability:** The Streamlit dashboard loaded `DemoRuntime` via `@st.cache_resource`, exposing a shared mutable singleton across all active user sessions (CWE-374 / CWE-662). If any view mutated dictionaries or attributes on this object, the changes would bleed across sessions, corrupting state globally.
+**Learning:** Returning mutable objects from `@st.cache_resource` is a severe concurrency risk. While `copy.deepcopy()` offers isolation, it incurs severe linear memory overhead and can crash on C-extensions. We also learned that attempting to add path traversal checks (like `is_relative_to`) to static internal string interpolations in ETL routines breaks legitimate symlink-based data ingestion workflows (which is common for network-attached storage).
+**Prevention:** Always wrap objects returned by `@st.cache_resource` in a lightweight, read-only proxy (like `ImmutableRuntimeProxy` using `types.MappingProxyType` for dictionaries) to achieve O(1) isolation and block attribute mutations via `__setattr__`.
