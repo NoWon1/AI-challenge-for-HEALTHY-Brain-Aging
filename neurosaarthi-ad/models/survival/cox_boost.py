@@ -23,6 +23,8 @@ except ImportError:
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 
+from models.utils.validation import validate_feature_matrix
+
 
 def _to_structured(time: np.ndarray, event: np.ndarray) -> np.ndarray:
     """Convert parallel arrays to scikit-survival structured array."""
@@ -79,7 +81,7 @@ class CoxBoostModel:
         frame: pd.DataFrame,
         time_col: str = "event_time_days",
         event_col: str = "event",
-    ) -> "CoxBoostModel":
+    ) -> CoxBoostModel:
         """Fit the model on *frame* using available backend."""
         X = frame[self.feature_columns].copy()
         times = frame[time_col].to_numpy(dtype=float)
@@ -134,6 +136,7 @@ class CoxBoostModel:
 
     def predict_risk_scores(self, frame: pd.DataFrame) -> np.ndarray:
         """Return risk scores (higher = worse prognosis)."""
+        validate_feature_matrix(frame[self.feature_columns], allow_nan=True)
         X = self._prepare(frame)
         if self._backend == "sksurv":
             return self._model.predict(X)
@@ -152,9 +155,9 @@ class CoxBoostModel:
 
         Returns array of shape ``(n_samples, n_times)``.
         """
+        validate_feature_matrix(frame[self.feature_columns], allow_nan=True)
         if time_points is None:
             time_points = np.array([365.25, 365.25 * 3, 365.25 * 5])
-
         X = self._prepare(frame)
 
         if self._backend == "sksurv":

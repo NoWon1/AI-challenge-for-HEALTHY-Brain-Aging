@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -15,6 +14,8 @@ try:
 except ImportError:
     RandomSurvivalForest = None
     SKSURV_AVAILABLE = False
+
+from models.utils.validation import validate_feature_matrix
 
 try:
     from sklearn.inspection import permutation_importance
@@ -36,7 +37,7 @@ class RandomSurvivalForestModel:
     def __post_init__(self) -> None:
         self.model = None
 
-    def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> "RandomSurvivalForestModel":
+    def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> RandomSurvivalForestModel:
         """Fit the model to survival data."""
         if SKSURV_AVAILABLE:
             self.model = RandomSurvivalForest(
@@ -61,8 +62,8 @@ class RandomSurvivalForestModel:
             # Fallback to Logistic Regression + Discrete intervals as mentioned in prompt
             warnings.warn("sksurv is not installed. Falling back to simple LogisticRegression.")
             try:
-                from sklearn.linear_model import LogisticRegression
                 from sklearn.impute import SimpleImputer
+                from sklearn.linear_model import LogisticRegression
                 from sklearn.pipeline import Pipeline
             except ImportError:
                 raise ImportError("sklearn is required for the fallback model.")
@@ -78,6 +79,7 @@ class RandomSurvivalForestModel:
 
     def predict_risk_scores(self, frame: pd.DataFrame) -> pd.Series:
         """Predict risk scores (higher = worse prognosis)."""
+        validate_feature_matrix(frame[self.feature_columns], allow_nan=False)
         if self.model is None:
             raise RuntimeError("Model must be fitted before prediction.")
             
@@ -97,6 +99,7 @@ class RandomSurvivalForestModel:
 
     def predict_survival_function(self, frame: pd.DataFrame, time_points: np.ndarray | None = None) -> pd.DataFrame:
         """Return survival probabilities at given time points."""
+        validate_feature_matrix(frame[self.feature_columns], allow_nan=False)
         if self.model is None:
             raise RuntimeError("Model must be fitted before prediction.")
             
@@ -123,6 +126,7 @@ class RandomSurvivalForestModel:
 
     def concordance_index(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> float:
         """Calculate the concordance index (C-index)."""
+        validate_feature_matrix(frame[self.feature_columns], allow_nan=False)
         if self.model is None:
             raise RuntimeError("Model must be fitted before evaluation.")
             
@@ -153,6 +157,7 @@ class RandomSurvivalForestModel:
             warnings.warn("sklearn permutation_importance is not available.")
             return pd.DataFrame()
             
+        validate_feature_matrix(frame[self.feature_columns], allow_nan=False)
         if self.model is None:
             raise RuntimeError("Model must be fitted before permutation importance.")
             

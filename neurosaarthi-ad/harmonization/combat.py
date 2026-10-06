@@ -5,8 +5,10 @@ Implements a simplified parametric empirical Bayes adjustment
 validation leakage. Biological covariates (age, sex) are preserved.
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
+
 import logging
+from dataclasses import dataclass, field
+
 import numpy as np
 import pandas as pd
 
@@ -36,7 +38,7 @@ class TrainOnlyComBat:
     _batch_stds: dict[str, pd.Series] = field(default_factory=dict, repr=False, init=False)
     _fitted: bool = field(default=False, repr=False, init=False)
     
-    def fit(self, frame: pd.DataFrame) -> 'TrainOnlyComBat':
+    def fit(self, frame: pd.DataFrame) -> TrainOnlyComBat:
         data = frame[self.feature_columns].astype(float)
         self._grand_mean = data.mean()
         self._grand_std = data.std().replace(0.0, 1.0).fillna(1.0)

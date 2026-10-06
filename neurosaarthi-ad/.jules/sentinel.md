@@ -20,3 +20,8 @@
 **Vulnerability:** A Time-of-Check to Time-of-Use (TOCTOU) file permission race condition existed in `export_models.py` where a directory was created with default permissions before `os.chmod()` was applied.
 **Learning:** In the split-second between `mkdir(exist_ok=True)` and `os.chmod(OUT_DIR, 0o700)`, the directory is accessible with potentially overly permissive default permissions, creating a window for data exposure or tampering if sensitive artifacts are written concurrently or if the script crashes before `chmod`.
 **Prevention:** Always enforce access restrictions exactly at the time of creation by setting the permission mode natively during the filesystem operation (e.g., using `Path.mkdir(mode=0o700, exist_ok=True)` or passing restrictive flags and modes to `os.open()`).
+
+## 2026-10-29 - [Pre-Inference Numerical Boundary Validation]
+**Vulnerability:** Downstream machine learning estimators in models components didn't safeguard against non-finite payloads (NaN, ±Inf), raising uncaught internal exceptions or corrupted prediction probabilities (CWE-20 / CWE-682).
+**Learning:** Found a systemic gap where clinical inference functions accepted unfiltered Pandas/Numpy structures directly. If models route `NaN` values, they can propagate `NaN` or unhandled predictions to clients.
+**Prevention:** Injected a centralized `validate_feature_matrix` function into all models modules prediction functions `predict_risk`, `predict_risk_scores`, `predict_survival_function` and `predict` to actively trap bad numbers.

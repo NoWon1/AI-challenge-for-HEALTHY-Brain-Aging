@@ -14,7 +14,7 @@ class TrainOnlyStandardizer:
     stds_: dict[str, float] = field(default_factory=dict)
     fitted_: bool = False
 
-    def fit(self, frame: pd.DataFrame) -> "TrainOnlyStandardizer":
+    def fit(self, frame: pd.DataFrame) -> TrainOnlyStandardizer:
         self.means_ = {column: float(frame[column].mean()) for column in self.columns}
         self.stds_ = {}
         for column in self.columns:

@@ -9,6 +9,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from models.utils.validation import validate_feature_matrix
+
 try:
     import lightgbm as lgb
 
@@ -78,9 +80,9 @@ class GBMRiskClassifier:
 
     def fit(
         self, frame: pd.DataFrame, target_col: str = "event"
-    ) -> "GBMRiskClassifier":
+    ) -> GBMRiskClassifier:
         """Fit the gradient boosting model with optional isotonic calibration."""
-        x = frame[self.feature_columns]
+        x = frame[self.feature_columns].astype(float)
         y = frame[target_col]
 
         base_model = self._get_base_model()
@@ -104,17 +106,20 @@ class GBMRiskClassifier:
 
     def predict_risk(self, frame: pd.DataFrame) -> pd.Series:
         """Return probability estimates for the risk."""
+        validate_feature_matrix(frame[self.feature_columns], allow_nan=True)
+
         if self.model is None:
             raise RuntimeError(
                 "Classifier must be fitted before predict_risk is called."
             )
 
-        x = frame[self.feature_columns]
+        x = frame[self.feature_columns].astype(float)
         probabilities = self.model.predict_proba(x)[:, 1]
         return pd.Series(probabilities, index=frame.index, name="risk")
 
     def feature_importance(self) -> dict[str, float]:
         """Return a dictionary mapping feature names to their importance (gain)."""
+
         if self.model is None:
             raise RuntimeError(
                 "Classifier must be fitted before getting feature importance."
@@ -146,6 +151,7 @@ class GBMRiskClassifier:
         if not SHAP_AVAILABLE:
             warnings.warn("shap library is not installed. Returning None.")
             return None
+
         if self.model is None:
             raise RuntimeError("Classifier must be fitted before getting SHAP values.")
 
@@ -153,7 +159,7 @@ class GBMRiskClassifier:
         if self._is_calibrated:
             model_to_inspect = self.model.calibrated_classifiers_[0].estimator
 
-        x = frame[self.feature_columns]
+        x = frame[self.feature_columns].astype(float)
         try:
             explainer = shap.TreeExplainer(model_to_inspect)
             shap_vals = explainer.shap_values(x)
@@ -167,7 +173,7 @@ class GBMRiskClassifier:
 
     def fit_multi_horizon(
         self, frame: pd.DataFrame, horizons: tuple[int, ...] = (1, 3, 5)
-    ) -> dict[int, "GBMRiskClassifier"]:
+    ) -> dict[int, GBMRiskClassifier]:
         """Train separate models per horizon.
 
         Assumes target columns exist as `event_{horizon}` in the frame.

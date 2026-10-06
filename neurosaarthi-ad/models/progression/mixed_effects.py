@@ -14,6 +14,8 @@ try:
 except ImportError:  # pragma: no cover
     sm = MixedLM = None
 
+from models.utils.validation import validate_feature_matrix
+
 try:
     from sklearn.linear_model import Ridge
 except ImportError:  # pragma: no cover
@@ -28,7 +30,7 @@ class MixedEffectsTrajectory:
     group_col: str = "participant_id"
     time_col: str = "horizon_years"
 
-    def fit(self, frame: pd.DataFrame, target_col: str = "future_score") -> "MixedEffectsTrajectory":
+    def fit(self, frame: pd.DataFrame, target_col: str = "future_score") -> MixedEffectsTrajectory:
         """Fit the mixed-effects model.
         
         Uses statsmodels MixedLM if available, fitting random intercepts and slopes.
@@ -36,6 +38,7 @@ class MixedEffectsTrajectory:
         """
         self._target_col = target_col
         self._is_statsmodels = MixedLM is not None
+
 
         if self._is_statsmodels:
             endog = frame[target_col].astype(float)
@@ -65,7 +68,9 @@ class MixedEffectsTrajectory:
         return self
 
     def predict(self, frame: pd.DataFrame) -> pd.Series:
+        validate_feature_matrix(frame[self.feature_columns], allow_nan=True)
         """Predict the future scores for the given data."""
+
         if self._is_statsmodels:
             exog = sm.add_constant(frame[self.feature_columns].astype(float).fillna(0.0), has_constant='add')
             exog_re = sm.add_constant(frame[[self.time_col]].astype(float).fillna(0.0), has_constant='add')
@@ -116,7 +121,7 @@ class MixedEffectsTrajectory:
 
             return pd.Series(preds, index=frame.index, name="predicted_" + self._target_col)
 
-    def calibrate_conformal(self, residuals: np.ndarray | pd.Series, alpha: float = 0.1) -> "MixedEffectsTrajectory":
+    def calibrate_conformal(self, residuals: np.ndarray | pd.Series, alpha: float = 0.1) -> MixedEffectsTrajectory:
         """Compute the conformal quantile from held-out residuals."""
         res = np.asarray(residuals)
         n = len(res)
@@ -137,6 +142,7 @@ class MixedEffectsTrajectory:
         
     def person_effects(self, participant_id: Any) -> pd.Series | dict:
         """Return the estimated random effects for a person."""
+
         if self._is_statsmodels:
             if participant_id in self.result_.random_effects:
                 return self.result_.random_effects[participant_id]

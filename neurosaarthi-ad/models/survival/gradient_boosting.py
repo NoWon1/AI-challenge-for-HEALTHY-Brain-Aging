@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.impute import SimpleImputer
 from sklearn.exceptions import NotFittedError
+from sklearn.impute import SimpleImputer
+
+from models.utils.validation import validate_feature_matrix
 
 try:
     from sksurv.ensemble import GradientBoostingSurvivalAnalysis
@@ -52,7 +53,7 @@ class GradientBoostingSurvivalModel:
         if missing_cols:
             raise ValueError(f"Missing feature columns in data: {missing_cols}")
 
-    def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> "GradientBoostingSurvivalModel":
+    def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> GradientBoostingSurvivalModel:
         """Fit the model to survival data."""
         self._validate_data(frame, is_fit=True)
         
@@ -87,6 +88,7 @@ class GradientBoostingSurvivalModel:
     def predict_risk_scores(self, frame: pd.DataFrame) -> pd.Series:
         """Predict risk scores (higher = worse prognosis)."""
         self._validate_data(frame, is_fit=False)
+        validate_feature_matrix(frame[self.feature_columns_], allow_nan=True)
             
         X = frame[self.feature_columns_].copy()
         X_imputed = self.imputer_.transform(X)
@@ -98,6 +100,7 @@ class GradientBoostingSurvivalModel:
     def predict_survival_function(self, frame: pd.DataFrame, time_points: np.ndarray | None = None) -> pd.DataFrame:
         """Return survival probabilities at given time points."""
         self._validate_data(frame, is_fit=False)
+        validate_feature_matrix(frame[self.feature_columns_], allow_nan=True)
             
         X = frame[self.feature_columns_].copy()
         X_imputed = self.imputer_.transform(X)
@@ -119,6 +122,7 @@ class GradientBoostingSurvivalModel:
     def concordance_index(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> float:
         """Calculate the concordance index (C-index)."""
         self._validate_data(frame, is_fit=False)
+        validate_feature_matrix(frame[self.feature_columns_], allow_nan=True)
             
         clean_frame = frame.dropna(subset=[time_col, event_col])
         if not np.isfinite(clean_frame[time_col]).all():
@@ -148,6 +152,7 @@ class GradientBoostingSurvivalModel:
             return pd.DataFrame()
             
         self._validate_data(frame, is_fit=False)
+        validate_feature_matrix(frame[self.feature_columns_], allow_nan=True)
             
         clean_frame = frame.dropna(subset=[time_col, event_col])
         if not np.isfinite(clean_frame[time_col]).all():

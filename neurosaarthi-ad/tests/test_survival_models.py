@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from models.survival.rsf import RandomSurvivalForestModel
+
 try:
     from models.survival.cox_boost import CoxBoostModel
 except ImportError:
