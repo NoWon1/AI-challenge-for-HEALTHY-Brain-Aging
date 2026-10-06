@@ -2,25 +2,27 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
-from typing import Iterable
 
 import numpy as np
-import re
 import pandas as pd
+from evaluation.calibration import calibration_bins
+from evaluation.metrics import binary_metrics
+from harmonization.leakage import (
+    assert_disjoint_participants,
+    assert_no_future_features,
+)
+from models.fusion.late_fusion import weighted_score_fusion
+from models.progression.baseline import CognitiveTrajectoryRegressor
+from models.twinlite.retrieval import TwinLiteRetriever
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from demo.synthetic import DemoCohortBundle, INDIAN_COHORTS, PUBLIC_COHORTS
-from evaluation.calibration import calibration_bins
-from evaluation.metrics import binary_metrics
-from harmonization.leakage import assert_disjoint_participants, assert_no_future_features
-from models.fusion.late_fusion import weighted_score_fusion
-from models.progression.baseline import CognitiveTrajectoryRegressor
-from models.twinlite.retrieval import TwinLiteRetriever
-
+from demo.synthetic import PUBLIC_COHORTS, DemoCohortBundle
 
 HORIZONS = (1, 3, 5)
 MODALITY_FEATURES: dict[str, list[str]] = {
@@ -382,22 +384,32 @@ class GBMDiscreteTimeRiskEnsemble:
 
 def _assign_splits(baseline: pd.DataFrame, seed: int) -> pd.DataFrame:
     rng = np.random.default_rng(seed + 101)
-    rows = []
+    dfs = []
     for cohort, group in baseline.groupby("cohort", sort=False):
         ids = group["participant_id"].to_numpy(copy=True)
         rng.shuffle(ids)
+
+        n_ids = len(ids)
+        roles = np.empty(n_ids, dtype=object)
+
         if cohort in PUBLIC_COHORTS:
-            validation_count = max(1, int(round(0.20 * len(ids))))
-            validation_ids = set(ids[:validation_count])
-            role_for = lambda participant_id: "public_validation" if participant_id in validation_ids else "global_train"
+            validation_count = max(1, round(0.20 * n_ids))
+            roles[:validation_count] = "public_validation"
+            roles[validation_count:] = "global_train"
         elif cohort == "TLSA":
-            validation_count = max(1, int(round(0.30 * len(ids))))
-            validation_ids = set(ids[:validation_count])
-            role_for = lambda participant_id: "india_validation" if participant_id in validation_ids else "tlsa_adaptation"
+            validation_count = max(1, round(0.30 * n_ids))
+            roles[:validation_count] = "india_validation"
+            roles[validation_count:] = "tlsa_adaptation"
         else:
-            role_for = lambda participant_id: "external_validation"
-        rows.extend({"participant_id": participant_id, "cohort": cohort, "role": role_for(participant_id)} for participant_id in ids)
-    return pd.DataFrame(rows)
+            roles[:] = "external_validation"
+
+        dfs.append(pd.DataFrame({
+            "participant_id": ids,
+            "cohort": cohort,
+            "role": roles
+        }))
+
+    return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame(columns=["participant_id", "cohort", "role"])
 
 
 def _safe_metrics(y_true: pd.Series, y_score: pd.Series) -> dict[str, float]:
