@@ -15,3 +15,8 @@
 **Vulnerability:** Unescaped dynamic strings in `st.warning` allowed Markdown injection (hyperlinks, image tracking pixels).
 **Learning:** Streamlit's `st.warning` parses Markdown by default. While it doesn't execute `<script>` tags, it is vulnerable to Markdown injection through unescaped dynamic strings.
 **Prevention:** Sanitize text dynamically inserted into warnings at the source boundary using regex to escape CommonMark structural tokens (`\`, `` ` ``, `*`, `_`, `{`, `}`, `[`, `]`, `(`, `)`, `#`, `+`, `-`, `.`, `!`, `~`, `|`, `<`, `>`). Enclose dynamic identifiers in monospace code spans to neutralize hyperlink and tracking-pixel injection.
+
+## 2026-10-28 - [Prevent Cross-Session State Corruption in Streamlit]
+**Vulnerability:** Cached mutable singletons via `@st.cache_resource` allowed cross-session state corruption (data bleeding) between concurrent users (CWE-374 / CWE-662).
+**Learning:** In Streamlit, `@st.cache_resource` persists a single instance across all concurrent browser sessions. Modifying properties on a cached instance (like `DemoRuntime`) directly alters it for all other active users. While `copy.deepcopy()` solves this, it breaks memory scaling by allocating identical large models/matrices per user and can crash on non-serializable objects (like C-extension locks).
+**Prevention:** Ensured strict cross-session isolation by wrapping the globally cached object in an immutable `ReadOnlyFacade`. This allows safe $O(1)$ read-only access while explicitly raising `TypeError` on attempted mutations `__setattr__` or `__delattr__`.

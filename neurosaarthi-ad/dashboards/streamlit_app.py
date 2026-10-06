@@ -17,6 +17,35 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from types import MappingProxyType
+from typing import Any
+
+
+class ReadOnlyFacade:
+    """
+    Read-only proxy wrapping an object to prevent cross-session state corruption
+    when cached via @st.cache_resource (CWE-374 / CWE-662).
+    """
+
+    def __init__(self, target: Any) -> None:
+        super().__setattr__('_target', target)
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._target, name)
+        if isinstance(attr, dict):
+            return MappingProxyType(attr)
+        return attr
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise TypeError(
+            f"Modification of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
+        )
+
+    def __delattr__(self, name: str) -> None:
+        raise TypeError(
+            f"Deletion of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
+        )
+
 from demo.runtime import (
     PRESET_PROFILES,
     ParticipantProfile,
@@ -80,9 +109,10 @@ def _inject_styles() -> None:
 
 @st.cache_resource(show_spinner="Preparing the synthetic seven-cohort workbench…")
 def _load_runtime():
-    return build_demo_runtime(
+    runtime = build_demo_runtime(
         generate_demo_cohort(seed=42, n_per_cohort=120), n_bootstrap=12
     )
+    return ReadOnlyFacade(runtime)
 
 
 def _optional_slider(
