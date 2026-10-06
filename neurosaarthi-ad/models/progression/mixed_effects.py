@@ -28,7 +28,7 @@ class MixedEffectsTrajectory:
     group_col: str = "participant_id"
     time_col: str = "horizon_years"
 
-    def fit(self, frame: pd.DataFrame, target_col: str = "future_score") -> "MixedEffectsTrajectory":
+    def fit(self, frame: pd.DataFrame, target_col: str = "future_score") -> MixedEffectsTrajectory:
         """Fit the mixed-effects model.
         
         Uses statsmodels MixedLM if available, fitting random intercepts and slopes.
@@ -116,7 +116,7 @@ class MixedEffectsTrajectory:
 
             return pd.Series(preds, index=frame.index, name="predicted_" + self._target_col)
 
-    def calibrate_conformal(self, residuals: np.ndarray | pd.Series, alpha: float = 0.1) -> "MixedEffectsTrajectory":
+    def calibrate_conformal(self, residuals: np.ndarray | pd.Series, alpha: float = 0.1) -> MixedEffectsTrajectory:
         """Compute the conformal quantile from held-out residuals."""
         res = np.asarray(residuals)
         n = len(res)

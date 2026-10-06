@@ -20,3 +20,8 @@
 **Vulnerability:** A Time-of-Check to Time-of-Use (TOCTOU) file permission race condition existed in `export_models.py` where a directory was created with default permissions before `os.chmod()` was applied.
 **Learning:** In the split-second between `mkdir(exist_ok=True)` and `os.chmod(OUT_DIR, 0o700)`, the directory is accessible with potentially overly permissive default permissions, creating a window for data exposure or tampering if sensitive artifacts are written concurrently or if the script crashes before `chmod`.
 **Prevention:** Always enforce access restrictions exactly at the time of creation by setting the permission mode natively during the filesystem operation (e.g., using `Path.mkdir(mode=0o700, exist_ok=True)` or passing restrictive flags and modes to `os.open()`).
+
+## 2026-10-29 - [Restricting DataFrame Cache Mutability in Streamlit]
+**Vulnerability:** Downstream DataFrame mutation vulnerability (CWE-374 / Data Integrity) allowed silent cross-session state corruption. The cached object `ImmutableRuntimeProxy` returned mutable references to nested `pd.DataFrame`s.
+**Learning:** Returning read-only wrappers for high-level cache objects isn't enough when those objects return mutable state like Pandas DataFrames. A slice or assignment in one session can corrupt the dataset in memory across all sessions via `@st.cache_resource`.
+**Prevention:** Intercept `.DataFrame` accesses in Streamlit proxy objects and return `.copy(deep=True)` defensively, and recurse through nested attributes (`__dict__`) to protect deeply nested objects to ensure the global cache remains functionally immutable.

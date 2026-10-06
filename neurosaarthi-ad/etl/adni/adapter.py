@@ -4,10 +4,13 @@ Parses ADNIMERGE.csv and related tables from the Alzheimer's Disease
 Neuroimaging Initiative into the NeuroSaarthi-AD common data model.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
 from etl.base import CohortAdapter, CohortTables
 
 _DX_MAP = {
@@ -98,7 +101,7 @@ class AdniAdapter(CohortAdapter):
         raw = raw.copy()
         raw['participant_id'] = 'ADNI-' + raw['RID'].astype(str).str.zfill(4)
         raw['visit_index'] = raw['VISCODE'].str.lower().map(
-            {**{'bl': 0, 'sc': 0}, **{f'm{m:02d}': m//6 for m in range(6,180,6)}, **{f'm{m}': m//6 for m in range(6,180,6)}}
+            {'bl': 0, 'sc': 0, **{f'm{m:02d}': m//6 for m in range(6,180,6)}, **{f'm{m}': m//6 for m in range(6,180,6)}}
         ).fillna(0).astype(int)
         raw['visit_id'] = raw['participant_id'] + '-V' + raw['visit_index'].astype(str)
         

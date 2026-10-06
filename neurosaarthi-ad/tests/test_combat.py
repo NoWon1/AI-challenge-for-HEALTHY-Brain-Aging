@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 from harmonization.combat import TrainOnlyComBat
+
 
 def _make_synthetic():
     rng = np.random.default_rng(42)

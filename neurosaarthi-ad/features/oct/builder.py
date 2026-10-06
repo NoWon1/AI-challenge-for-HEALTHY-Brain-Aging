@@ -1,8 +1,10 @@
 """OCT/OCTA feature builders with retinal biomarker indices."""
 from __future__ import annotations
-import numpy as np
+
 import pandas as pd
+
 from features.base import pivot_modality_features
+
 
 def build_oct_features(features: pd.DataFrame) -> pd.DataFrame:
     wide = pivot_modality_features(features, "oct")

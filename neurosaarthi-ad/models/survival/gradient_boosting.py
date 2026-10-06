@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.impute import SimpleImputer
 from sklearn.exceptions import NotFittedError
+from sklearn.impute import SimpleImputer
 
 try:
     from sksurv.ensemble import GradientBoostingSurvivalAnalysis
@@ -52,7 +51,7 @@ class GradientBoostingSurvivalModel:
         if missing_cols:
             raise ValueError(f"Missing feature columns in data: {missing_cols}")
 
-    def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> "GradientBoostingSurvivalModel":
+    def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> GradientBoostingSurvivalModel:
         """Fit the model to survival data."""
         self._validate_data(frame, is_fit=True)
         

@@ -79,7 +79,7 @@ class CoxBoostModel:
         frame: pd.DataFrame,
         time_col: str = "event_time_days",
         event_col: str = "event",
-    ) -> "CoxBoostModel":
+    ) -> CoxBoostModel:
         """Fit the model on *frame* using available backend."""
         X = frame[self.feature_columns].copy()
         times = frame[time_col].to_numpy(dtype=float)

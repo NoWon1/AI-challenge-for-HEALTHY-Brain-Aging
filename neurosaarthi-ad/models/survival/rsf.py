@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -36,7 +35,7 @@ class RandomSurvivalForestModel:
     def __post_init__(self) -> None:
         self.model = None
 
-    def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> "RandomSurvivalForestModel":
+    def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> RandomSurvivalForestModel:
         """Fit the model to survival data."""
         if SKSURV_AVAILABLE:
             self.model = RandomSurvivalForest(
@@ -61,8 +60,8 @@ class RandomSurvivalForestModel:
             # Fallback to Logistic Regression + Discrete intervals as mentioned in prompt
             warnings.warn("sksurv is not installed. Falling back to simple LogisticRegression.")
             try:
-                from sklearn.linear_model import LogisticRegression
                 from sklearn.impute import SimpleImputer
+                from sklearn.linear_model import LogisticRegression
                 from sklearn.pipeline import Pipeline
             except ImportError:
                 raise ImportError("sklearn is required for the fallback model.")

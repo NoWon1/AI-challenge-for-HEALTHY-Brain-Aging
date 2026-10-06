@@ -3,11 +3,15 @@
 Parses OASIS-3 tabular data (demographics and clinical sessions).
 """
 from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
 from etl.base import CohortAdapter, CohortTables
+
 
 @dataclass
 class OasisAdapter(CohortAdapter):
