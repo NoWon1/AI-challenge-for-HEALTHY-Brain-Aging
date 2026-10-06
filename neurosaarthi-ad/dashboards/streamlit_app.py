@@ -16,6 +16,8 @@ import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
+from types import MappingProxyType
+from typing import Any
 
 from demo.runtime import (
     PRESET_PROFILES,
@@ -78,11 +80,38 @@ def _inject_styles() -> None:
     )
 
 
+class ImmutableRuntimeProxy:
+    """
+    Read-only proxy wrapping DemoRuntime to prevent cross-session state corruption
+    when cached via @st.cache_resource (CWE-374 / CWE-662).
+    """
+
+    def __init__(self, target: Any) -> None:
+        super().__setattr__("_target", target)
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._target, name)
+        if isinstance(attr, dict):
+            return MappingProxyType(attr)
+        return attr
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise AttributeError(
+            f"Modification of '{name}' forbidden: cached runtime is read-only across sessions."
+        )
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError(
+            f"Deletion of '{name}' forbidden: cached runtime is read-only across sessions."
+        )
+
+
 @st.cache_resource(show_spinner="Preparing the synthetic seven-cohort workbench…")
-def _load_runtime():
-    return build_demo_runtime(
+def _load_runtime() -> ImmutableRuntimeProxy:
+    runtime = build_demo_runtime(
         generate_demo_cohort(seed=42, n_per_cohort=120), n_bootstrap=12
     )
+    return ImmutableRuntimeProxy(runtime)
 
 
 def _optional_slider(
