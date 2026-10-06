@@ -19,7 +19,18 @@ def weighted_score_fusion(scores: pd.DataFrame, weights: dict[str, float]) -> pd
         raise ValueError("Fusion weights must be non-negative and sum to a positive value")
 
     weight_series = pd.Series(weights, dtype=float)
-    aligned = scores[list(weights)].apply(pd.to_numeric, errors="coerce")
+
+    # ⚡ Bolt: Fast path to bypass slow DataFrame.apply(pd.to_numeric) when columns are already float types
+    cols = list(weights)
+    sub_df = scores[cols]
+    if all(pd.api.types.is_float_dtype(sub_df[c]) for c in cols):
+        aligned = sub_df
+    else:
+        aligned = pd.DataFrame(
+            {c: pd.to_numeric(sub_df[c], errors="coerce") for c in cols},
+            index=scores.index,
+        )
+
     available = aligned.notna()
     numerator = aligned.fillna(0.0).mul(weight_series, axis="columns").sum(axis=1)
     denominator = available.mul(weight_series, axis="columns").sum(axis=1)

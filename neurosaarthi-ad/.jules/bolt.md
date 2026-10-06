@@ -25,3 +25,7 @@ In `demo/runtime.py` (`predict_distribution` methods for `DiscreteTimeRiskEnsemb
 Deep copying DataFrames iteratively is extremely costly in Python (memory allocation and O(N) copy operations per loop iteration). By instantiating a `base_frame = frame[self.feature_columns].copy()` once *before* the outer model loop and merely updating the scalar-driven `interval_year` column repeatedly, we remove O(num_models * 5) full DataFrame deep-copies.
 
 This resulted in a 14x speedup (0.27s -> 0.02s in a 1000-row synthetic benchmark), significantly improving real-time inference latency for UI prediction loops.
+
+## 2024-10-24 - DataFrame.apply(pd.to_numeric) overhead
+**Learning:** Using `df.apply(pd.to_numeric, errors="coerce")` on a pandas DataFrame introduces significant overhead by repeatedly invoking Python-level callable dispatch per column, even when the underlying data is already stored as efficient numeric arrays (e.g. `float64`).
+**Action:** Before coercing data types, add a fast-path type check to verify if the relevant columns are already floating-point (e.g. using `all(pd.api.types.is_float_dtype(df[c]) for c in cols)`). If they are, bypass type conversion entirely. Otherwise, fall back to applying `pd.to_numeric` using a faster dictionary comprehension rather than `DataFrame.apply`.
