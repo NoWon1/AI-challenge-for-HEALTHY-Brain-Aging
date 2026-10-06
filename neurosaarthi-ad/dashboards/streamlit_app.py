@@ -428,6 +428,17 @@ def _sanitize_markdown(text: str) -> str:
     return re.sub(r"([\\`*_{}\[\]()#+\-.!~|<>])", r"\\\1", str(text))
 
 
+def _sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Neutralizes CSV formula injection tokens in text columns."""
+    df_clean = df.copy()
+    text_cols = df_clean.select_dtypes(include=["object", "string"]).columns
+    for col in text_cols:
+        df_clean[col] = df_clean[col].apply(
+            lambda val: f"'{val}" if isinstance(val, str) and val.startswith(("=", "+", "-", "@", "\t", "\r")) else val
+        )
+    return df_clean
+
+
 def _participant_view(runtime, forecast) -> None:
     st.markdown("## Participant progression studio")
     safe_id = html.escape(str(forecast.profile.participant_id))
@@ -476,7 +487,7 @@ def _participant_view(runtime, forecast) -> None:
         lambda value: f"{value:.1f}"
     )
     st.dataframe(
-        twin_table.rename(
+        _sanitize_dataframe(twin_table.rename(
             columns={
                 "participant_id": "Synthetic participant",
                 "cohort": "Reference cohort",
@@ -484,7 +495,7 @@ def _participant_view(runtime, forecast) -> None:
                 "similarity": "Similarity",
                 "baseline_cognition": "Baseline cognition",
             }
-        ),
+        )),
         hide_index=True,
         use_container_width=True,
     )
@@ -503,7 +514,7 @@ def _validation_view(runtime) -> None:
             lambda value: "—" if pd.isna(value) else f"{value:.3f}"
         )
     st.dataframe(
-        summary.rename(
+        _sanitize_dataframe(summary.rename(
             columns={
                 "validation_set": "Validation set",
                 "participants": "Participants",
@@ -512,7 +523,7 @@ def _validation_view(runtime) -> None:
                 "auprc": "AUPRC",
                 "brier": "Brier",
             }
-        ),
+        )),
         hide_index=True,
         use_container_width=True,
     )
@@ -654,7 +665,7 @@ def _harmonisation_view(runtime) -> None:
         manifest = manifest[manifest["cohort"] == cohort]
     if modality != "All":
         manifest = manifest[manifest["modality"] == modality]
-    st.dataframe(manifest, hide_index=True, use_container_width=True)
+    st.dataframe(_sanitize_dataframe(manifest), hide_index=True, use_container_width=True)
 
     missing_column, checks_column = st.columns([1.15, 1])
     with missing_column:
@@ -682,7 +693,7 @@ def _harmonisation_view(runtime) -> None:
     with checks_column:
         st.markdown("### Leakage and safety checks")
         st.dataframe(
-            runtime.quality_checks,
+            _sanitize_dataframe(runtime.quality_checks),
             hide_index=True,
             use_container_width=True,
             height=300,
