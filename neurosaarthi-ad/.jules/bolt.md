@@ -28,3 +28,7 @@ This resulted in a 14x speedup (0.27s -> 0.02s in a 1000-row synthetic benchmark
 ## 2026-10-06 - O(N) penalty from loop-based dataframe groupby aggregations and re-merging (assign splits)
 **Learning:** In pandas, iterating over `.groupby()` objects with a python `for` loop to extract inner numpy arrays and manually append them using list comprehension introduces significant O(N) looping overhead. The `_assign_splits` demo step suffered from this pattern.
 **Action:** Replace explicit `for` loops with fully vectorized numpy assignments for boolean conditions and array slices. Reconstruct the subset dataframes and apply `pd.concat` to delegate the iteration to optimized C levels, resulting in significant performance gains (>10x speedup).
+
+## 2026-10-07 - O(N) penalty from loop-based dataframe apply for type conversion
+**Learning:** In pandas, using `DataFrame.apply(pd.to_numeric)` introduces significant overhead due to Python-level callable dispatch for every column.
+**Action:** Implement a fast-path type check using `pd.api.types.is_numeric_dtype` to bypass conversion if columns are already numeric. If coercion is necessary, fallback to a dictionary comprehension (e.g. `pd.DataFrame({c: pd.to_numeric(df[c]) for c in cols})`) which avoids the apply overhead and provides a significant speedup.
