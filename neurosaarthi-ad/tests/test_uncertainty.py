@@ -15,11 +15,13 @@ def test_bootstrap_ci_contains_point():
 
 def test_conformal_coverage():
     cp = ConformalPredictor()
-    residuals = np.random.normal(0, 1, 1000)
+    rng = np.random.default_rng(42)
+    # The conformal predictor calibration assumes absolute residuals
+    residuals = np.abs(rng.normal(0, 1, 5000))
     width = cp.calibrate(residuals, alpha=0.1)
     
-    preds = np.zeros(1000)
-    y_true = residuals
+    preds = np.zeros(5000)
+    y_true = rng.normal(0, 1, 5000)
     
     lower, upper = cp.predict_interval(preds, width)
     coverage = cp.coverage(y_true, lower, upper)
@@ -36,7 +38,8 @@ def test_reliability_diagram_bins():
     assert 'ece' in df.columns
 
 def test_ood_score_self_is_zero():
-    train = np.random.normal(0, 1, (100, 5))
+    rng = np.random.default_rng(42)
+    train = rng.normal(0, 1, (100, 5))
     scores = ood_score(train[:5], train)
     assert (scores < 3).all()  # Mahalanobis distance should be small for in-distribution
 
