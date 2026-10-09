@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import html
 import re
+import types
 import altair as alt
 import numpy as np
 import pandas as pd
@@ -84,7 +85,10 @@ class ImmutableRuntimeProxy:
         object.__setattr__(self, "_obj", obj)
 
     def __getattr__(self, name):
-        return getattr(self._obj, name)
+        val = getattr(self._obj, name)
+        if isinstance(val, dict):
+            return types.MappingProxyType(val)
+        return val
 
     def __setattr__(self, name, value):
         raise TypeError(f"Cannot modify cached resource attribute: {name}")
