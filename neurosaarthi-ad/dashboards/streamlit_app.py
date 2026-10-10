@@ -24,7 +24,37 @@ from demo.runtime import (
     build_demo_runtime,
     profile_with,
 )
+from types import MappingProxyType
+from typing import Any
+
 from demo.synthetic import generate_demo_cohort
+
+
+class ImmutableRuntimeProxy:
+    """
+    Read-only proxy wrapping DemoRuntime to prevent cross-session state corruption
+    when cached via @st.cache_resource (CWE-374 / CWE-662).
+    """
+
+    def __init__(self, target: Any) -> None:
+        super().__setattr__("_target", target)
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._target, name)
+        # Protect internal dictionary lookups from in-place modification
+        if isinstance(attr, dict):
+            return MappingProxyType(attr)
+        return attr
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise AttributeError(
+            f"Modification of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
+        )
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError(
+            f"Deletion of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
+        )
 
 
 COLORS = {
@@ -98,12 +128,16 @@ class ImmutableRuntimeProxy:
 
 
 @st.cache_resource(show_spinner="Preparing the synthetic seven-cohort workbench…")
+def _load_runtime() -> ImmutableRuntimeProxy:
+    runtime = build_demo_runtime(
+        generate_demo_cohort(seed=42, n_per_cohort=120), n_bootstrap=12
 def _load_runtime():
     return ImmutableRuntimeProxy(
         build_demo_runtime(
             generate_demo_cohort(seed=42, n_per_cohort=120), n_bootstrap=12
         )
     )
+    return ImmutableRuntimeProxy(runtime)
 
 
 def _optional_slider(
