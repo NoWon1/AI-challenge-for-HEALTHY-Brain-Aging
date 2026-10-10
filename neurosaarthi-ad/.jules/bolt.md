@@ -32,3 +32,7 @@ This resulted in a 14x speedup (0.27s -> 0.02s in a 1000-row synthetic benchmark
 ## 2026-10-07 - O(N) penalty from loop-based dataframe apply for type conversion
 **Learning:** In pandas, using `DataFrame.apply(pd.to_numeric)` introduces significant overhead due to Python-level callable dispatch for every column.
 **Action:** Implement a fast-path type check using `pd.api.types.is_numeric_dtype` to bypass conversion if columns are already numeric. If coercion is necessary, fallback to a dictionary comprehension (e.g. `pd.DataFrame({c: pd.to_numeric(df[c]) for c in cols})`) which avoids the apply overhead and provides a significant speedup.
+
+## 2026-10-10 - O(N) penalty from loop-based DataFrame construction and calculations in prediction distribution
+**Learning:** In pandas, repeatedly constructing DataFrames inside tight nested prediction loops (such as iterating over model bootstraps and time horizons) for combining distributions across multiple modalities creates immense memory allocation and copy overhead.
+**Action:** Always prefer vectorized multi-dimensional array operations (NumPy) for merging and manipulating numerical values when aggregating distributions. For example, replace creating a DataFrame for each loop iteration (`score_frame = pd.DataFrame(index=frame.index)`) with a multi-dimensional numpy array (`fused = np.zeros((n_bootstrap, len(frame), len(HORIZONS)), dtype=float)`), significantly reducing latency for UI prediction loops.
