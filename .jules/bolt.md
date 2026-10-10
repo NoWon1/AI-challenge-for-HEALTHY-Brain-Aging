@@ -1,6 +1,4 @@
-## 2025-02-18 - ETL Anti-Pattern
-**Learning:** Codebase Anti-Pattern/Convention: Avoid using Pandas `.iterrows()` in the ETL adapters (e.g., `etl/base.py`, cohort adapters). Iterating over DataFrames is extremely slow in python compared to utilizing numpy underneath.
-**Action:** Replace iteration with idiomatic, vectorized Pandas operations (like `.merge()`, `combine_first()`, and boolean masking) to prevent severe performance bottlenecks.
+## Performance Optimizations
 
 ## 2025-02-18 - Explainability Evaluation Anti-Pattern
 **Learning:** Codebase Anti-Pattern/Convention: Avoid using Pandas `.iterrows()` in evaluation scripts, particularly for SHAP top-K extraction (`evaluation/explainability.py`). Iterating row-by-row on large SHAP DataFrames is highly inefficient.
@@ -48,3 +46,7 @@
 ## 2024-10-26 - Vectorized group conditional aggregation
 **Learning:** Computing group-wise conditional aggregations (e.g., computing a modality's missingness rate per cohort) via nested Python loops over pandas `.groupby()` subsets and feature lists introduces O(N*M) looping overhead.
 **Action:** Compute the boolean indicators (e.g., `df[features].notna().any(axis=1)`) across the entire DataFrame for all target features upfront into a temporary dictionary/DataFrame, then apply a single vectorized `.groupby(group_col).mean()`, and use `pd.melt()` to reshape the result into a long format for massive performance gains (~5x to 15x faster).
+* **Groupby Iteration Avoidance**: When building metrics or iterating over Pandas `groupby` objects (e.g., in `_build_validation_summary`), avoid calling aggregating methods like `.mean()` or `.size()` inside the python loop. Extract them out using `event_rates = grouped["event_by_3y"].mean()` and query the returned Series by its index within the loop. Doing so on a ~10k row dataset over 100 groups can result in a ~2x performance speedup as it avoids repeatedly dropping into python and re-evaluating DataFrame slices.
+## 2024-05-18 - Avoid iterative random generation in bootstrap loops
+**Learning:** Calling `rng.choice()` sequentially inside a bootstrap loop to generate resample indices introduces an O(B) python interpreter overhead and significantly slows down bootstrap confidence interval calculations and comparisons.
+**Action:** Replace with a single vectorized numpy call to pre-allocate the entire array of indices (e.g., `all_indices = rng.integers(0, n_samples, size=(n_bootstrap, n_samples))`) before the loop, and slice from it during the loop.

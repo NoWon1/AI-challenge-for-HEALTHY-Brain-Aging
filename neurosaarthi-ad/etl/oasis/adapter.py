@@ -19,14 +19,16 @@ class OasisAdapter(CohortAdapter):
         demographics_path = root / 'OASIS3_demographics.csv'
         clinical_path = root / 'OASIS3_clinical.csv'
         
-        if not demographics_path.exists() or not clinical_path.exists():
-            raise FileNotFoundError(
-                f'OASIS data not found. Please ensure OASIS3_demographics.csv '
-                f'and OASIS3_clinical.csv exist in {root}'
-            )
-            
-        demo_raw = pd.read_csv(demographics_path, low_memory=False)
-        clin_raw = pd.read_csv(clinical_path, low_memory=False)
+        demo_raw = self._load_csv_or_raise(
+            demographics_path,
+            f'OASIS data not found. Please ensure OASIS3_demographics.csv and OASIS3_clinical.csv exist in {root}',
+            low_memory=False
+        )
+        clin_raw = self._load_csv_or_raise(
+            clinical_path,
+            f'OASIS data not found. Please ensure OASIS3_demographics.csv and OASIS3_clinical.csv exist in {root}',
+            low_memory=False
+        )
         
         # Merge clinical and demo
         raw = clin_raw.merge(demo_raw, on='Subject', how='left')
