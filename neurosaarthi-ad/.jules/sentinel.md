@@ -16,6 +16,10 @@
 **Learning:** Streamlit's `st.warning` parses Markdown by default. While it doesn't execute `<script>` tags, it is vulnerable to Markdown injection through unescaped dynamic strings.
 **Prevention:** Sanitize text dynamically inserted into warnings at the source boundary using regex to escape CommonMark structural tokens (`\`, `` ` ``, `*`, `_`, `{`, `}`, `[`, `]`, `(`, `)`, `#`, `+`, `-`, `.`, `!`, `~`, `|`, `<`, `>`). Enclose dynamic identifiers in monospace code spans to neutralize hyperlink and tracking-pixel injection.
 
+## 2026-10-01 - [Preventing Streamlit @st.cache_resource Cross-Session State Bleeding]
+**Vulnerability:** The `@st.cache_resource` decorator in Streamlit cached a custom class instance (`DemoRuntime`). This persists a single memory reference across all concurrent browser sessions. Any mutation of its attributes or internal data dictionaries by one user would permanently corrupt the state for all other users (CWE-374 / CWE-662).
+**Learning:** Returning large, complex custom class objects directly from `@st.cache_resource` is a severe risk in multi-user apps. Using `copy.deepcopy()` is often not viable for ML pipelines because it scales poorly in memory and fails on C-extensions or open file descriptors (like scikit-learn/scikit-survival estimators).
+**Prevention:** Instead of deep-copying, enforce session isolation at zero memory overhead by wrapping the cached custom object in a read-only proxy facade that blocks `__setattr__` and `__delattr__`, and returns `types.MappingProxyType` for nested dictionaries.
 ## 2026-10-28 - [TOCTOU File Permission Race Condition]
 **Vulnerability:** A Time-of-Check to Time-of-Use (TOCTOU) file permission race condition existed in `export_models.py` where a directory was created with default permissions before `os.chmod()` was applied.
 **Learning:** In the split-second between `mkdir(exist_ok=True)` and `os.chmod(OUT_DIR, 0o700)`, the directory is accessible with potentially overly permissive default permissions, creating a window for data exposure or tampering if sensitive artifacts are written concurrently or if the script crashes before `chmod`.
