@@ -480,17 +480,29 @@ class DemoRuntime:
                 modality: model.predict_distribution(frame)
                 for modality, model in baseline_models.items()
             }
-            fused = np.full((self.n_bootstrap, len(frame), len(HORIZONS)), np.nan, dtype=float)
-            for bootstrap_index in range(self.n_bootstrap):
-                for horizon_index, _ in enumerate(HORIZONS):
-                    score_frame = pd.DataFrame(index=frame.index)
-                    for modality, distribution in modality_distributions.items():
-                        values = distribution[bootstrap_index, :, horizon_index].copy()
-                        values[~self._available_mask(frame, modality).to_numpy()] = np.nan
-                        score_frame[modality] = values
-                    fused[bootstrap_index, :, horizon_index] = weighted_score_fusion(
-                        score_frame, MODALITY_WEIGHTS
-                    ).to_numpy()
+            # ⚡ Bolt: Vectorized multi-dimensional fusion replaces slow O(N) Pandas loops
+            fused = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
+            total_weights = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
+
+            for modality, distribution in modality_distributions.items():
+                weight = MODALITY_WEIGHTS[modality]
+                values = distribution.copy()
+
+                valid_mask = self._available_mask(frame, modality).to_numpy()
+                values[:, ~valid_mask, :] = 0.0
+
+                is_nan = np.isnan(values)
+                values[is_nan] = 0.0
+
+                valid = valid_mask[None, :, None] & ~is_nan
+
+                fused += values * weight
+                total_weights += valid * weight
+
+            with np.errstate(divide='ignore', invalid='ignore'):
+                fused /= total_weights
+
+            fused[total_weights == 0] = np.nan
             return fused
 
         baseline_dist = _risk_distribution_baseline(self.validation)
@@ -570,20 +582,35 @@ class DemoRuntime:
             modality: model.predict_distribution(frame)
             for modality, model in self.risk_models.items()
         }
-        fused = np.full((self.n_bootstrap, len(frame), len(HORIZONS)), np.nan, dtype=float)
-        for bootstrap_index in range(self.n_bootstrap):
-            for horizon_index, _ in enumerate(HORIZONS):
-                score_frame = pd.DataFrame(index=frame.index)
-                for modality, distribution in modality_distributions.items():
-                    values = distribution[bootstrap_index, :, horizon_index].copy()
-                    if modality in disabled:
-                        values[:] = np.nan
-                    else:
-                        values[~self._available_mask(frame, modality).to_numpy()] = np.nan
-                    score_frame[modality] = values
-                fused[bootstrap_index, :, horizon_index] = weighted_score_fusion(
-                    score_frame, MODALITY_WEIGHTS
-                ).to_numpy()
+
+        # ⚡ Bolt: Vectorized multi-dimensional fusion replaces slow O(N) Pandas loops
+        fused = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
+        total_weights = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
+
+        for modality, distribution in modality_distributions.items():
+            weight = MODALITY_WEIGHTS[modality]
+            values = distribution.copy()
+
+            if modality in disabled:
+                valid_mask = np.zeros(len(frame), dtype=bool)
+            else:
+                valid_mask = self._available_mask(frame, modality).to_numpy()
+
+            values[:, ~valid_mask, :] = 0.0
+
+            is_nan = np.isnan(values)
+            values[is_nan] = 0.0
+
+            valid = valid_mask[None, :, None] & ~is_nan
+
+            fused += values * weight
+            total_weights += valid * weight
+
+        with np.errstate(divide='ignore', invalid='ignore'):
+            fused /= total_weights
+
+        fused[total_weights == 0] = np.nan
+
         return fused, modality_distributions
 
     def predict_batch(self, frame: pd.DataFrame, disabled_modalities: Iterable[str] = ()) -> pd.DataFrame:
