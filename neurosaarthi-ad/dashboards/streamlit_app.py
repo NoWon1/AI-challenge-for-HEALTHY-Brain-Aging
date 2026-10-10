@@ -23,6 +23,7 @@ from demo.runtime import (
     ParticipantProfile,
     build_demo_runtime,
     profile_with,
+    ImmutableRuntimeProxy,
 )
 from demo.synthetic import generate_demo_cohort
 
@@ -99,11 +100,14 @@ class ImmutableRuntimeProxy:
 
 @st.cache_resource(show_spinner="Preparing the synthetic seven-cohort workbench…")
 def _load_runtime():
+    runtime = build_demo_runtime(
+        generate_demo_cohort(seed=42, n_per_cohort=120), n_bootstrap=12
     return ImmutableRuntimeProxy(
         build_demo_runtime(
             generate_demo_cohort(seed=42, n_per_cohort=120), n_bootstrap=12
         )
     )
+    return ImmutableRuntimeProxy(runtime)
 
 
 def _optional_slider(

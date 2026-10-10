@@ -63,3 +63,18 @@ def test_validation_outputs_are_prediction_derived(runtime):
     assert len(runtime.calibration) >= 2
     assert (runtime.quality_checks["status"] == "Passed").all()
     assert "Full multimodal" in set(runtime.ablation["scenario"])
+
+def test_immutable_runtime_proxy_prevents_mutations():
+    from demo.runtime import ImmutableRuntimeProxy
+
+    class Dummy:
+        pass
+
+    dummy = Dummy()
+    proxy = ImmutableRuntimeProxy(dummy)
+
+    with pytest.raises(AttributeError, match="forbidden"):
+        proxy.some_attr = 5
+
+    with pytest.raises(AttributeError, match="forbidden"):
+        del proxy.some_attr

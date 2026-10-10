@@ -20,3 +20,8 @@
 **Vulnerability:** A Time-of-Check to Time-of-Use (TOCTOU) file permission race condition existed in `export_models.py` where a directory was created with default permissions before `os.chmod()` was applied.
 **Learning:** In the split-second between `mkdir(exist_ok=True)` and `os.chmod(OUT_DIR, 0o700)`, the directory is accessible with potentially overly permissive default permissions, creating a window for data exposure or tampering if sensitive artifacts are written concurrently or if the script crashes before `chmod`.
 **Prevention:** Always enforce access restrictions exactly at the time of creation by setting the permission mode natively during the filesystem operation (e.g., using `Path.mkdir(mode=0o700, exist_ok=True)` or passing restrictive flags and modes to `os.open()`).
+
+## 2026-10-29 - [Immutable Caching for Streamlit Resources]
+**Vulnerability:** The Streamlit `@st.cache_resource` decorator caches object references globally across all sessions. `DemoRuntime` is instantiated once and returned by `_load_runtime()`. If any concurrent user modified the instance (e.g. state mutation), it would lead to cross-session data bleeding/corruption (CWE-374).
+**Learning:** Returning mutable custom classes directly from `@st.cache_resource` creates shared state vulnerabilities in concurrent environments without zero copy overhead protection.
+**Prevention:** Created and applied an `ImmutableRuntimeProxy` facade wrapper that overrides `__getattr__`, `__setattr__`, and `__delattr__`, throwing `AttributeError` upon any mutation attempt and using `MappingProxyType` to wrap returned dictionaries, enforcing read-only behavior for cached session state.

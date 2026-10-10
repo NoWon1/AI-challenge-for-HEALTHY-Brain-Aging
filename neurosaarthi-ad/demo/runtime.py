@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
+from types import MappingProxyType
+from typing import Any, Iterable
 
 import numpy as np
 import pandas as pd
@@ -419,7 +421,35 @@ def _safe_metrics(y_true: pd.Series, y_score: pd.Series) -> dict[str, float]:
     return binary_metrics(valid["y"], valid["score"])
 
 
+
+
+class ImmutableRuntimeProxy:
+    """Read-only proxy wrapping DemoRuntime to prevent cross-session state corruption
+    when cached globally via @st.cache_resource (CWE-374 / CWE-662)."""
+
+    def __init__(self, target: Any) -> None:
+        super().__setattr__("_target", target)
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._target, name)
+        # Wrap dictionary attributes in a read-only MappingProxy
+        if isinstance(attr, dict):
+            return MappingProxyType(attr)
+        return attr
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise AttributeError(
+            f"Modification of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
+        )
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError(
+            f"Deletion of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
+        )
+
+
 class DemoRuntime:
+
     """Cached synthetic training, inference, validation, and audit state."""
 
     def __init__(self, bundle: DemoCohortBundle, n_bootstrap: int = 12, seed: int | None = None):
