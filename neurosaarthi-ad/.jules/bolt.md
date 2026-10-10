@@ -25,3 +25,14 @@ In `demo/runtime.py` (`predict_distribution` methods for `DiscreteTimeRiskEnsemb
 Deep copying DataFrames iteratively is extremely costly in Python (memory allocation and O(N) copy operations per loop iteration). By instantiating a `base_frame = frame[self.feature_columns].copy()` once *before* the outer model loop and merely updating the scalar-driven `interval_year` column repeatedly, we remove O(num_models * 5) full DataFrame deep-copies.
 
 This resulted in a 14x speedup (0.27s -> 0.02s in a 1000-row synthetic benchmark), significantly improving real-time inference latency for UI prediction loops.
+## 2026-10-06 - O(N) penalty from loop-based dataframe groupby aggregations and re-merging (assign splits)
+**Learning:** In pandas, iterating over `.groupby()` objects with a python `for` loop to extract inner numpy arrays and manually append them using list comprehension introduces significant O(N) looping overhead. The `_assign_splits` demo step suffered from this pattern.
+**Action:** Replace explicit `for` loops with fully vectorized numpy assignments for boolean conditions and array slices. Reconstruct the subset dataframes and apply `pd.concat` to delegate the iteration to optimized C levels, resulting in significant performance gains (>10x speedup).
+
+## 2026-10-07 - O(N) penalty from loop-based dataframe apply for type conversion
+**Learning:** In pandas, using `DataFrame.apply(pd.to_numeric)` introduces significant overhead due to Python-level callable dispatch for every column.
+**Action:** Implement a fast-path type check using `pd.api.types.is_numeric_dtype` to bypass conversion if columns are already numeric. If coercion is necessary, fallback to a dictionary comprehension (e.g. `pd.DataFrame({c: pd.to_numeric(df[c]) for c in cols})`) which avoids the apply overhead and provides a significant speedup.
+
+## 2026-10-10 - O(N) penalty from loop-based DataFrame construction and calculations in prediction distribution
+**Learning:** In pandas, repeatedly constructing DataFrames inside tight nested prediction loops (such as iterating over model bootstraps and time horizons) for combining distributions across multiple modalities creates immense memory allocation and copy overhead.
+**Action:** Always prefer vectorized multi-dimensional array operations (NumPy) for merging and manipulating numerical values when aggregating distributions. For example, replace creating a DataFrame for each loop iteration (`score_frame = pd.DataFrame(index=frame.index)`) with a multi-dimensional numpy array (`fused = np.zeros((n_bootstrap, len(frame), len(HORIZONS)), dtype=float)`), significantly reducing latency for UI prediction loops.
