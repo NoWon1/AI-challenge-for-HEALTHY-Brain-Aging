@@ -2,25 +2,27 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
-from typing import Iterable
 
 import numpy as np
-import re
 import pandas as pd
+from evaluation.calibration import calibration_bins
+from evaluation.metrics import binary_metrics
+from harmonization.leakage import (
+    assert_disjoint_participants,
+    assert_no_future_features,
+)
+from models.fusion.late_fusion import weighted_score_fusion
+from models.progression.baseline import CognitiveTrajectoryRegressor
+from models.twinlite.retrieval import TwinLiteRetriever
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from demo.synthetic import DemoCohortBundle, INDIAN_COHORTS, PUBLIC_COHORTS
-from evaluation.calibration import calibration_bins
-from evaluation.metrics import binary_metrics
-from harmonization.leakage import assert_disjoint_participants, assert_no_future_features
-from models.fusion.late_fusion import weighted_score_fusion
-from models.progression.baseline import CognitiveTrajectoryRegressor
-from models.twinlite.retrieval import TwinLiteRetriever
-
+from demo.synthetic import PUBLIC_COHORTS, DemoCohortBundle
 
 HORIZONS = (1, 3, 5)
 MODALITY_FEATURES: dict[str, list[str]] = {
@@ -269,12 +271,13 @@ class _LegacyDiscreteTimeRiskEnsemble:
         if not self.models:
             raise RuntimeError("DiscreteTimeRiskEnsemble must be fitted before prediction")
         output = np.zeros((len(self.models), len(frame), len(HORIZONS)), dtype=float)
+        base_frame = frame[self.feature_columns].copy()
         for model_index, model in enumerate(self.models):
             survival = np.ones(len(frame), dtype=float)
             horizon_position = 0
             for year in range(1, 6):
-                interval_frame = frame[self.feature_columns].copy()
-                interval_frame["interval_year"] = float(year)
+                base_frame["interval_year"] = float(year)
+                interval_frame = base_frame
                 hazard = model.predict_proba(interval_frame)[:, 1]
                 hazard = np.clip(hazard, 0.001, 0.95)
                 survival *= 1.0 - hazard
@@ -360,12 +363,13 @@ class GBMDiscreteTimeRiskEnsemble:
         if not self.models:
             raise RuntimeError("GBMDiscreteTimeRiskEnsemble must be fitted before prediction")
         output = np.zeros((len(self.models), len(frame), len(HORIZONS)), dtype=float)
+        base_frame = frame[self.feature_columns].copy()
         for model_index, model in enumerate(self.models):
             survival = np.ones(len(frame), dtype=float)
             horizon_position = 0
             for year in range(1, 6):
-                interval_frame = frame[self.feature_columns].copy()
-                interval_frame["interval_year"] = float(year)
+                base_frame["interval_year"] = float(year)
+                interval_frame = base_frame
                 if hasattr(model, "predict_risk"):
                     hazard = model.predict_risk(interval_frame)
                 else:
@@ -380,22 +384,32 @@ class GBMDiscreteTimeRiskEnsemble:
 
 def _assign_splits(baseline: pd.DataFrame, seed: int) -> pd.DataFrame:
     rng = np.random.default_rng(seed + 101)
-    rows = []
+    dfs = []
     for cohort, group in baseline.groupby("cohort", sort=False):
         ids = group["participant_id"].to_numpy(copy=True)
         rng.shuffle(ids)
+
+        n_ids = len(ids)
+        roles = np.empty(n_ids, dtype=object)
+
         if cohort in PUBLIC_COHORTS:
-            validation_count = max(1, int(round(0.20 * len(ids))))
-            validation_ids = set(ids[:validation_count])
-            role_for = lambda participant_id: "public_validation" if participant_id in validation_ids else "global_train"
+            validation_count = max(1, round(0.20 * n_ids))
+            roles[:validation_count] = "public_validation"
+            roles[validation_count:] = "global_train"
         elif cohort == "TLSA":
-            validation_count = max(1, int(round(0.30 * len(ids))))
-            validation_ids = set(ids[:validation_count])
-            role_for = lambda participant_id: "india_validation" if participant_id in validation_ids else "tlsa_adaptation"
+            validation_count = max(1, round(0.30 * n_ids))
+            roles[:validation_count] = "india_validation"
+            roles[validation_count:] = "tlsa_adaptation"
         else:
-            role_for = lambda participant_id: "external_validation"
-        rows.extend({"participant_id": participant_id, "cohort": cohort, "role": role_for(participant_id)} for participant_id in ids)
-    return pd.DataFrame(rows)
+            roles[:] = "external_validation"
+
+        dfs.append(pd.DataFrame({
+            "participant_id": ids,
+            "cohort": cohort,
+            "role": roles
+        }))
+
+    return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame(columns=["participant_id", "cohort", "role"])
 
 
 def _safe_metrics(y_true: pd.Series, y_score: pd.Series) -> dict[str, float]:
@@ -466,17 +480,29 @@ class DemoRuntime:
                 modality: model.predict_distribution(frame)
                 for modality, model in baseline_models.items()
             }
-            fused = np.full((self.n_bootstrap, len(frame), len(HORIZONS)), np.nan, dtype=float)
-            for bootstrap_index in range(self.n_bootstrap):
-                for horizon_index, _ in enumerate(HORIZONS):
-                    score_frame = pd.DataFrame(index=frame.index)
-                    for modality, distribution in modality_distributions.items():
-                        values = distribution[bootstrap_index, :, horizon_index].copy()
-                        values[~self._available_mask(frame, modality).to_numpy()] = np.nan
-                        score_frame[modality] = values
-                    fused[bootstrap_index, :, horizon_index] = weighted_score_fusion(
-                        score_frame, MODALITY_WEIGHTS
-                    ).to_numpy()
+            # ⚡ Bolt: Vectorized multi-dimensional fusion replaces slow O(N) Pandas loops
+            fused = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
+            total_weights = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
+
+            for modality, distribution in modality_distributions.items():
+                weight = MODALITY_WEIGHTS[modality]
+                values = distribution.copy()
+
+                valid_mask = self._available_mask(frame, modality).to_numpy()
+                values[:, ~valid_mask, :] = 0.0
+
+                is_nan = np.isnan(values)
+                values[is_nan] = 0.0
+
+                valid = valid_mask[None, :, None] & ~is_nan
+
+                fused += values * weight
+                total_weights += valid * weight
+
+            with np.errstate(divide='ignore', invalid='ignore'):
+                fused /= total_weights
+
+            fused[total_weights == 0] = np.nan
             return fused
 
         baseline_dist = _risk_distribution_baseline(self.validation)
@@ -556,20 +582,35 @@ class DemoRuntime:
             modality: model.predict_distribution(frame)
             for modality, model in self.risk_models.items()
         }
-        fused = np.full((self.n_bootstrap, len(frame), len(HORIZONS)), np.nan, dtype=float)
-        for bootstrap_index in range(self.n_bootstrap):
-            for horizon_index, _ in enumerate(HORIZONS):
-                score_frame = pd.DataFrame(index=frame.index)
-                for modality, distribution in modality_distributions.items():
-                    values = distribution[bootstrap_index, :, horizon_index].copy()
-                    if modality in disabled:
-                        values[:] = np.nan
-                    else:
-                        values[~self._available_mask(frame, modality).to_numpy()] = np.nan
-                    score_frame[modality] = values
-                fused[bootstrap_index, :, horizon_index] = weighted_score_fusion(
-                    score_frame, MODALITY_WEIGHTS
-                ).to_numpy()
+
+        # ⚡ Bolt: Vectorized multi-dimensional fusion replaces slow O(N) Pandas loops
+        fused = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
+        total_weights = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
+
+        for modality, distribution in modality_distributions.items():
+            weight = MODALITY_WEIGHTS[modality]
+            values = distribution.copy()
+
+            if modality in disabled:
+                valid_mask = np.zeros(len(frame), dtype=bool)
+            else:
+                valid_mask = self._available_mask(frame, modality).to_numpy()
+
+            values[:, ~valid_mask, :] = 0.0
+
+            is_nan = np.isnan(values)
+            values[is_nan] = 0.0
+
+            valid = valid_mask[None, :, None] & ~is_nan
+
+            fused += values * weight
+            total_weights += valid * weight
+
+        with np.errstate(divide='ignore', invalid='ignore'):
+            fused /= total_weights
+
+        fused[total_weights == 0] = np.nan
+
         return fused, modality_distributions
 
     def predict_batch(self, frame: pd.DataFrame, disabled_modalities: Iterable[str] = ()) -> pd.DataFrame:
@@ -599,13 +640,17 @@ class DemoRuntime:
             "external_validation": "SANSCOG external validation",
         }
         rows = []
-        for role, group in self.validation_predictions.groupby("role", sort=False):
+        # ⚡ Bolt: Extract pre-grouped stats into a Series to avoid O(N) looping overhead
+        # from re-calculating means on Pandas DataFrame slices inside the loop
+        grouped = self.validation_predictions.groupby("role", sort=False)
+        event_rates = grouped["event_by_3y"].mean()
+        for role, group in grouped:
             metrics = _safe_metrics(group["event_by_3y"], group["risk_3y"])
             rows.append(
                 {
                     "validation_set": labels[role],
                     "participants": len(group),
-                    "event_rate": float(group["event_by_3y"].mean()),
+                    "event_rate": float(event_rates[role]),
                     **metrics,
                 }
             )
@@ -629,14 +674,18 @@ class DemoRuntime:
         }
         rows = []
         for dimension, column in dimensions.items():
-            for value, group in india.groupby(column, observed=True):
+            # ⚡ Bolt: Extract pre-grouped stats into a Series to avoid O(N) looping overhead
+            # from re-calculating means on Pandas DataFrame slices inside the loop
+            grouped = india.groupby(column, observed=True)
+            event_rates = grouped["event_by_3y"].mean()
+            for value, group in grouped:
                 metrics = _safe_metrics(group["event_by_3y"], group["risk_3y"])
                 rows.append(
                     {
                         "dimension": dimension,
                         "group": str(value),
                         "participants": len(group),
-                        "event_rate": float(group["event_by_3y"].mean()),
+                        "event_rate": float(event_rates[value]),
                         **metrics,
                     }
                 )
@@ -662,17 +711,20 @@ class DemoRuntime:
         return result
 
     def _build_missingness(self) -> pd.DataFrame:
-        rows = []
-        for cohort, group in self.baseline.groupby("cohort", sort=False):
-            for modality, features in MODALITY_FEATURES.items():
-                rows.append(
-                    {
-                        "cohort": cohort,
-                        "modality": modality,
-                        "missing_rate": float(1.0 - group[features].notna().any(axis=1).mean()),
-                    }
-                )
-        return pd.DataFrame(rows)
+        # ⚡ Bolt: Vectorized missingness calculation to avoid O(N*M) looping overhead
+        presence_cols = {
+            modality: self.baseline[features].notna().any(axis=1)
+            for modality, features in MODALITY_FEATURES.items()
+        }
+        presence_df = pd.DataFrame(presence_cols)
+        presence_df["cohort"] = self.baseline["cohort"]
+
+        rates = presence_df.groupby("cohort", sort=False).mean()
+        missing_rates = 1.0 - rates
+
+        result = missing_rates.stack().reset_index()
+        result.columns = pd.Index(["cohort", "modality", "missing_rate"])
+        return result
 
     def _build_quality_checks(self) -> pd.DataFrame:
         canonical_units = {
