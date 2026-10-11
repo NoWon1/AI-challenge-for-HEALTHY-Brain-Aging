@@ -80,7 +80,11 @@ class OasisAdapter(CohortAdapter):
             if 'ad' in v or 'dementia' in v: return 'dementia'
             return 'unknown'
             
-        raw['diagnosis'] = raw.get('dx1', pd.Series(dtype=str)).apply(map_dx)
+        # ⚡ Bolt: Replace slow .apply() with precomputed dict mapping for discrete values for significant performance speedup
+        dx_series = raw.get('dx1', pd.Series(dtype=str))
+        unique_vals = dx_series.dropna().unique()
+        dx_map = {val: map_dx(val) for val in unique_vals}
+        raw['diagnosis'] = dx_series.map(dx_map).fillna('unknown')
         raw['cdr_global'] = pd.to_numeric(raw.get('CDR', np.nan), errors='coerce').fillna(0.0) / 3.0
         
         visits = pd.DataFrame({
