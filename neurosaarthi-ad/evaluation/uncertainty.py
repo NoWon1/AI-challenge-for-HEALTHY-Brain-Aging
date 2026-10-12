@@ -37,8 +37,10 @@ class BootstrapCI:
 
         n_samples = len(data_args[0])
         bootstrapped_metrics = []
-        for _ in range(self.n_bootstrap):
-            indices = rng.choice(n_samples, size=n_samples, replace=True)
+        # ⚡ Bolt: Vectorized pre-allocation replaces slow O(B) python loop generation for bootstrap indices
+        all_indices = rng.integers(0, n_samples, size=(self.n_bootstrap, n_samples))
+        for i in range(self.n_bootstrap):
+            indices = all_indices[i]
             boot_args = [arg[indices] for arg in data_args]
             bootstrapped_metrics.append(metric_fn(*boot_args))
 

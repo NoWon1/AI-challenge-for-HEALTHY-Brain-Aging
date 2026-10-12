@@ -128,6 +128,31 @@ class OasisAdapter(CohortAdapter):
         return visits.sort_values(["participant_id", "visit_index"]).reset_index(
             drop=True
         )
+            if 'normal' in v or 'cn' in v: return 'cognitively_unimpaired'
+            if 'mci' in v: return 'mci'
+            if 'ad' in v or 'dementia' in v: return 'dementia'
+            return 'unknown'
+            
+        # ⚡ Bolt: Replace slow .apply() with precomputed dict mapping for discrete values for significant performance speedup
+        dx_series = raw.get('dx1', pd.Series(dtype=str))
+        unique_vals = dx_series.dropna().unique()
+        dx_map = {val: map_dx(val) for val in unique_vals}
+        raw['diagnosis'] = dx_series.map(dx_map).fillna('unknown')
+        raw['cdr_global'] = pd.to_numeric(raw.get('CDR', np.nan), errors='coerce').fillna(0.0) / 3.0
+        
+        visits = pd.DataFrame({
+            'visit_id': raw['participant_id'] + '-V' + raw['visit_index'].astype(str),
+            'participant_id': raw['participant_id'],
+            'cohort': self.cohort_name,
+            'visit_index': raw['visit_index'],
+            'age_at_visit': pd.to_numeric(raw['Age'], errors='coerce'),
+            'visit_date': raw['exam_date'],
+            'baseline_days': raw['baseline_days'],
+            'diagnosis': raw['diagnosis'],
+            'cdr_global': raw['cdr_global'],
+            'cognitive_status': raw['diagnosis'],
+        })
+        return visits.sort_values(['participant_id', 'visit_index']).reset_index(drop=True)
 
     def _build_features(self, raw: pd.DataFrame, visits: pd.DataFrame) -> pd.DataFrame:
         raw = raw.copy()

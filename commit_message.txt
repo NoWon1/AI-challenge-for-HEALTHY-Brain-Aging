@@ -1,0 +1,6 @@
+🧹 Remove unused ParticipantForecast import from demo/__init__.py
+
+🎯 What: Removed the unused `ParticipantForecast` import and its entry in `__all__` within `demo/__init__.py`.
+💡 Why: Improves maintainability by keeping the package's public API clean and ensuring `__all__` only exports what is necessary.
+✅ Verification: Confirmed via `ruff`, `flake8`, and static analysis across the codebase that `ParticipantForecast` is only used internally in `demo/runtime.py` and isn't imported from the `demo` package anywhere else. Also ran `pytest tests/` which completed with preexisting failures.
+✨ Result: Clean `demo/__init__.py` without unused imports.

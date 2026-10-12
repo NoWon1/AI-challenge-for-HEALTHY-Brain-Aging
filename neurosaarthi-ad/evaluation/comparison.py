@@ -149,9 +149,11 @@ def bootstrap_comparison(
     base_b = metric_fn(y_true, y_score_b)
     base_diff = base_a - base_b
 
+    # ⚡ Bolt: Vectorized pre-allocation replaces slow O(B) python loop generation for bootstrap indices
+    all_indices = rng.integers(0, n, size=(n_bootstrap, n))
     diffs = []
-    for _ in range(n_bootstrap):
-        idx = rng.choice(n, size=n, replace=True)
+    for i in range(n_bootstrap):
+        idx = all_indices[i]
         boot_a = metric_fn(y_true[idx], y_score_a[idx])
         boot_b = metric_fn(y_true[idx], y_score_b[idx])
         diffs.append(boot_a - boot_b)
