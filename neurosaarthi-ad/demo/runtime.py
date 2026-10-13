@@ -384,32 +384,42 @@ class GBMDiscreteTimeRiskEnsemble:
 
 def _assign_splits(baseline: pd.DataFrame, seed: int) -> pd.DataFrame:
     rng = np.random.default_rng(seed + 101)
-    dfs = []
-    for cohort, group in baseline.groupby("cohort", sort=False):
-        ids = group["participant_id"].to_numpy(copy=True)
-        rng.shuffle(ids)
+    # ⚡ Bolt: Vectorized dataframe logic to avoid O(N) groupby appending list overhead.
+    # Assign random values and rank within each cohort to determine roles vectorially.
 
-        n_ids = len(ids)
-        roles = np.empty(n_ids, dtype=object)
+    if baseline.empty:
+        return pd.DataFrame(columns=["participant_id", "cohort", "role"])
 
-        if cohort in PUBLIC_COHORTS:
-            validation_count = max(1, round(0.20 * n_ids))
-            roles[:validation_count] = "public_validation"
-            roles[validation_count:] = "global_train"
-        elif cohort == "TLSA":
-            validation_count = max(1, round(0.30 * n_ids))
-            roles[:validation_count] = "india_validation"
-            roles[validation_count:] = "tlsa_adaptation"
-        else:
-            roles[:] = "external_validation"
+    df = baseline[["participant_id", "cohort"]].copy()
+    n_samples = len(df)
 
-        dfs.append(pd.DataFrame({
-            "participant_id": ids,
-            "cohort": cohort,
-            "role": roles
-        }))
+    # Random uniform values to determine intra-cohort rank order (analogous to shuffle)
+    df["_rand"] = rng.random(n_samples)
 
-    return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame(columns=["participant_id", "cohort", "role"])
+    # Group by cohort and compute rank and total count
+    gb = df.groupby("cohort", sort=False)
+    # Using method="first" resolves ties safely.
+    df["_rank"] = gb["_rand"].rank(method="first")
+    df["_count"] = gb["cohort"].transform("count")
+
+    # Default everything to external_validation
+    df["role"] = "external_validation"
+
+    # Apply conditions for PUBLIC_COHORTS
+    public_mask = df["cohort"].isin(PUBLIC_COHORTS)
+    public_val_count = np.maximum(1, np.round(0.20 * df["_count"]))
+
+    df.loc[public_mask & (df["_rank"] <= public_val_count), "role"] = "public_validation"
+    df.loc[public_mask & (df["_rank"] > public_val_count), "role"] = "global_train"
+
+    # Apply conditions for TLSA
+    tlsa_mask = df["cohort"] == "TLSA"
+    tlsa_val_count = np.maximum(1, np.round(0.30 * df["_count"]))
+
+    df.loc[tlsa_mask & (df["_rank"] <= tlsa_val_count), "role"] = "india_validation"
+    df.loc[tlsa_mask & (df["_rank"] > tlsa_val_count), "role"] = "tlsa_adaptation"
+
+    return df[["participant_id", "cohort", "role"]]
 
 
 def _safe_metrics(y_true: pd.Series, y_score: pd.Series) -> dict[str, float]:
