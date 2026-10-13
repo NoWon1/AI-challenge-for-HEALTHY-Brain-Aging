@@ -36,3 +36,7 @@ This resulted in a 14x speedup (0.27s -> 0.02s in a 1000-row synthetic benchmark
 ## 2026-10-10 - O(N) penalty from loop-based DataFrame construction and calculations in prediction distribution
 **Learning:** In pandas, repeatedly constructing DataFrames inside tight nested prediction loops (such as iterating over model bootstraps and time horizons) for combining distributions across multiple modalities creates immense memory allocation and copy overhead.
 **Action:** Always prefer vectorized multi-dimensional array operations (NumPy) for merging and manipulating numerical values when aggregating distributions. For example, replace creating a DataFrame for each loop iteration (`score_frame = pd.DataFrame(index=frame.index)`) with a multi-dimensional numpy array (`fused = np.zeros((n_bootstrap, len(frame), len(HORIZONS)), dtype=float)`), significantly reducing latency for UI prediction loops.
+
+## 2026-10-11 - O(N) penalty from loop-based split assignment inside groupby loop
+**Learning:** Iterating over `baseline.groupby("cohort")` in Python to assign dataset splits (roles) using random permutations and building subset dataframes to be appended to a list introduces significant overhead and breaks vectorization.
+**Action:** Use fully vectorized dataframe operations such as assigning a random column, then using `groupby("cohort").rank()` and `transform("count")` to determine boundaries, and compute roles using boolean masking instead of looping over groups.

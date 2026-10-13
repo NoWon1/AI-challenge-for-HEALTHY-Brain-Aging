@@ -129,15 +129,11 @@ class ImmutableRuntimeProxy:
 
 @st.cache_resource(show_spinner="Preparing the synthetic seven-cohort workbench…")
 def _load_runtime() -> ImmutableRuntimeProxy:
-    runtime = build_demo_runtime(
-        generate_demo_cohort(seed=42, n_per_cohort=120), n_bootstrap=12
-def _load_runtime():
     return ImmutableRuntimeProxy(
         build_demo_runtime(
             generate_demo_cohort(seed=42, n_per_cohort=120), n_bootstrap=12
         )
     )
-    return ImmutableRuntimeProxy(runtime)
 
 
 def _optional_slider(
