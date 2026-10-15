@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -36,7 +35,7 @@ class RandomSurvivalForestModel:
     def __post_init__(self) -> None:
         self.model = None
 
-    def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> "RandomSurvivalForestModel":
+    def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> RandomSurvivalForestModel:
         """Fit the model to survival data."""
         if SKSURV_AVAILABLE:
             self.model = RandomSurvivalForest(
@@ -51,18 +50,18 @@ class RandomSurvivalForestModel:
             clean_frame = frame.dropna(subset=[time_col, event_col, *self.feature_columns])
             
             # Create structured array
-            y = np.array(
-                list(zip(clean_frame[event_col].astype(bool), clean_frame[time_col])),
-                dtype=[('event', '?'), ('time', '<f8')]
-            )
+            # ⚡ Bolt: Vectorized pre-allocation replaces slow list comprehension and zip() for structured arrays
+            y = np.empty(len(clean_frame), dtype=[('event', '?'), ('time', '<f8')])
+            y['event'] = clean_frame[event_col].astype(bool)
+            y['time'] = clean_frame[time_col].astype(float)
             
             self.model.fit(clean_frame[self.feature_columns], y)
         else:
             # Fallback to Logistic Regression + Discrete intervals as mentioned in prompt
             warnings.warn("sksurv is not installed. Falling back to simple LogisticRegression.")
             try:
-                from sklearn.linear_model import LogisticRegression
                 from sklearn.impute import SimpleImputer
+                from sklearn.linear_model import LogisticRegression
                 from sklearn.pipeline import Pipeline
             except ImportError:
                 raise ImportError("sklearn is required for the fallback model.")
@@ -159,10 +158,10 @@ class RandomSurvivalForestModel:
         clean_frame = frame.dropna(subset=[time_col, event_col, *self.feature_columns])
         
         if SKSURV_AVAILABLE and isinstance(self.model, RandomSurvivalForest):
-            y = np.array(
-                list(zip(clean_frame[event_col].astype(bool), clean_frame[time_col])),
-                dtype=[('event', '?'), ('time', '<f8')]
-            )
+            # ⚡ Bolt: Vectorized pre-allocation replaces slow list comprehension and zip() for structured arrays
+            y = np.empty(len(clean_frame), dtype=[('event', '?'), ('time', '<f8')])
+            y['event'] = clean_frame[event_col].astype(bool)
+            y['time'] = clean_frame[time_col].astype(float)
         else:
             y = clean_frame[event_col]
             

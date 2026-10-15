@@ -4,3 +4,7 @@
 ## 2024-05-18 - Avoid iterative random generation in bootstrap loops
 **Learning:** Calling `rng.choice()` sequentially inside a bootstrap loop to generate resample indices introduces an O(B) python interpreter overhead and significantly slows down bootstrap confidence interval calculations and comparisons.
 **Action:** Replace with a single vectorized numpy call to pre-allocate the entire array of indices (e.g., `all_indices = rng.integers(0, n_samples, size=(n_bootstrap, n_samples))`) before the loop, and slice from it during the loop.
+
+## 2026-10-15 - Vectorized structured array creation for survival models
+**Learning:** Creating `sksurv` structured arrays (e.g., `dtype=[("event", bool), ("time", float)]`) by combining parallel NumPy arrays with a Python list comprehension and `zip()` inside `np.array()` introduces a significant O(N) overhead in survival model data preparation.
+**Action:** Replace `list(zip(...))` inside `np.array()` with vectorized pre-allocation (`np.empty(N, dtype=...)`) and direct column assignments (`y["event"] = ...`) for massive performance speedups.
