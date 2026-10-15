@@ -26,10 +26,11 @@ from sklearn.preprocessing import StandardScaler
 
 def _to_structured(time: np.ndarray, event: np.ndarray) -> np.ndarray:
     """Convert parallel arrays to scikit-survival structured array."""
-    return np.array(
-        [(bool(e), float(t)) for e, t in zip(event, time)],
-        dtype=[("event", bool), ("time", float)],
-    )
+    # ⚡ Bolt: Vectorized pre-allocation replaces slow list comprehension and zip() for structured arrays
+    y = np.empty(len(time), dtype=[("event", bool), ("time", float)])
+    y["event"] = event.astype(bool)
+    y["time"] = time.astype(float)
+    return y
 
 
 @dataclass
@@ -79,7 +80,7 @@ class CoxBoostModel:
         frame: pd.DataFrame,
         time_col: str = "event_time_days",
         event_col: str = "event",
-    ) -> "CoxBoostModel":
+    ) -> CoxBoostModel:
         """Fit the model on *frame* using available backend."""
         X = frame[self.feature_columns].copy()
         times = frame[time_col].to_numpy(dtype=float)
