@@ -404,17 +404,20 @@ def generate_demo_cohort(seed: int = 42, n_per_cohort: int = 120) -> DemoCohortB
     baseline = pd.DataFrame(baseline_rows).sort_values(["cohort", "participant_id"]).reset_index(drop=True)
     trajectories = pd.DataFrame(trajectory_rows).sort_values(["participant_id", "year"]).reset_index(drop=True)
 
-    summary_rows = []
-    for cohort, group in baseline.groupby("cohort", sort=False):
-        summary_rows.append(
-            {
-                "cohort": cohort,
-                "participants": len(group),
-                "role": "Development" if cohort in PUBLIC_COHORTS else ("India adaptation" if cohort == "TLSA" else "External India validation"),
-                "setting": _participant_setting(cohort),
-                "five_year_event_rate": float(group["event_by_5y"].mean()),
-            }
-        )
+    # ⚡ Bolt: Vectorized groupby aggregations avoid slow explicit O(N) Python loops
+    grouped = baseline.groupby("cohort", sort=False)
+    summary_df = grouped.agg(
+        participants=("participant_id", "size"),
+        five_year_event_rate=("event_by_5y", "mean")
+    ).reset_index()
+
+    summary_df["role"] = summary_df["cohort"].map(
+        lambda c: "Development" if c in PUBLIC_COHORTS else ("India adaptation" if c == "TLSA" else "External India validation")
+    )
+    summary_df["setting"] = summary_df["cohort"].map(_participant_setting)
+
+    # Reorder columns to match original
+    summary_df = summary_df[["cohort", "participants", "role", "setting", "five_year_event_rate"]]
 
     return DemoCohortBundle(
         tables=CohortTables(
@@ -426,6 +429,6 @@ def generate_demo_cohort(seed: int = 42, n_per_cohort: int = 120) -> DemoCohortB
         baseline=baseline,
         trajectories=trajectories,
         harmonization_manifest=_manifest(),
-        cohort_summary=pd.DataFrame(summary_rows),
+        cohort_summary=summary_df,
         seed=seed,
     )
