@@ -40,3 +40,6 @@ This resulted in a 14x speedup (0.27s -> 0.02s in a 1000-row synthetic benchmark
 ## 2026-10-11 - O(N) penalty from loop-based split assignment inside groupby loop
 **Learning:** Iterating over `baseline.groupby("cohort")` in Python to assign dataset splits (roles) using random permutations and building subset dataframes to be appended to a list introduces significant overhead and breaks vectorization.
 **Action:** Use fully vectorized dataframe operations such as assigning a random column, then using `groupby("cohort").rank()` and `transform("count")` to determine boundaries, and compute roles using boolean masking instead of looping over groups.
+## 2026-10-16 - O(N) penalty from loop-based dataframe groupby aggregations and re-merging in synthetic cohort generation
+**Learning:** In pandas, iterating over `.groupby()` objects with a python `for` loop to compute scalar group statistics (e.g., `size`, `mean`) and appending dictionaries to a list introduces significant O(N) looping overhead. The synthetic cohort generator suffered from this pattern.
+**Action:** Replace explicit `for cohort, group in baseline.groupby(...)` loops with fully vectorized aggregations (e.g., `grouped.agg(participants=("participant_id", "size"), rate=("event_by_5y", "mean"))`). Use `.map()` on columns to derive dependent features, completely avoiding explicit python loops.

@@ -83,7 +83,7 @@ class ParticipantProfile:
     ancestry_pc1: float | None
 
     def to_frame(self) -> pd.DataFrame:
-        return pd.DataFrame(
+        df = pd.DataFrame(
             [
                 {
                     "participant_id": self.participant_id,
@@ -113,6 +113,7 @@ class ParticipantProfile:
                 }
             ]
         )
+        return df.astype({c: float for c in df.select_dtypes('object').columns if c not in ['participant_id', 'sex', 'urban_rural', 'label']})
 
 
 PRESET_PROFILES: dict[str, ParticipantProfile] = {
