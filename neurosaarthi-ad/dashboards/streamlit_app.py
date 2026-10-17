@@ -121,10 +121,10 @@ class ImmutableRuntimeProxy:
         return val
 
     def __setattr__(self, name, value):
-        raise TypeError(f"Cannot modify cached resource attribute: {name}")
+        raise AttributeError(f"Modification of attribute {name} is forbidden: cached runtime is read-only across sessions.")
 
     def __delattr__(self, name):
-        raise TypeError(f"Cannot delete cached resource attribute: {name}")
+        raise AttributeError(f"Deletion of attribute {name} is forbidden: cached runtime is read-only across sessions.")
 
 
 @st.cache_resource(show_spinner="Preparing the synthetic seven-cohort workbench…")
@@ -334,10 +334,10 @@ def _profile_controls() -> ParticipantProfile:
 
 
 def _risk_card(row: dict) -> str:
-    horizon = str(int(row['horizon']))
-    risk = f"{row['risk']:.0%}"
-    lower = f"{row['lower']:.0%}"
-    upper = f"{row['upper']:.0%}"
+    horizon = html.escape(str(int(row['horizon'])))
+    risk = html.escape(f"{row['risk']:.0%}")
+    lower = html.escape(f"{row['lower']:.0%}")
+    upper = html.escape(f"{row['upper']:.0%}")
     return f"""
     <div class="ns-risk">
       <div class="label">{horizon}-year progression risk</div>
