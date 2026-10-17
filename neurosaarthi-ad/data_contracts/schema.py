@@ -118,3 +118,10 @@ def validate_columns(table_name: str, columns: list[str], contract_path: str | P
     missing = contracts[table_name].missing_required(set(columns))
     if missing:
         raise ValueError(f"{table_name} is missing required columns: {', '.join(missing)}")
+
+def get_allowed_columns(table_name: str, contract_path: str | Path | None = None) -> list[str]:
+    contracts = load_contract(contract_path)
+    if table_name not in contracts:
+        raise KeyError(f"Unknown table contract: {table_name}")
+    contract = contracts[table_name]
+    return list(set(list(contract.required_columns.keys()) + list(contract.recommended_columns.keys()) + [contract.primary_key]))

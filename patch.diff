@@ -1,0 +1,32 @@
+--- neurosaarthi-ad/data_contracts/schema.py
++++ neurosaarthi-ad/data_contracts/schema.py
+@@ -107,3 +107,10 @@
+     missing = contracts[table_name].missing_required(set(columns))
+     if missing:
+         raise ValueError(f"{table_name} is missing required columns: {', '.join(missing)}")
++
++def get_allowed_columns(table_name: str, contract_path: str | Path | None = None) -> list[str]:
++    contracts = load_contract(contract_path)
++    if table_name not in contracts:
++        raise KeyError(f"Unknown table contract: {table_name}")
++    contract = contracts[table_name]
++    return list(contract.required_columns.keys()) + list(contract.recommended_columns.keys())
+--- neurosaarthi-ad/etl/csv_adapter.py
++++ neurosaarthi-ad/etl/csv_adapter.py
+@@ -5,7 +5,7 @@
+
+ import pandas as pd
+
+-from data_contracts.schema import validate_columns
++from data_contracts.schema import validate_columns, get_allowed_columns
+ from etl.base import CohortAdapter, CohortTables
+
+
+@@ -21,6 +21,8 @@
+             path = (Path(self.raw_dir) / f"{table_name}.csv").resolve()
+             frame = pd.read_csv(path)
+             validate_columns(table_name, list(frame.columns))
++            allowed_columns = get_allowed_columns(table_name)
++            frame = frame[[col for col in frame.columns if col in allowed_columns]]
+             tables[table_name] = frame
+         return CohortTables(**tables)
