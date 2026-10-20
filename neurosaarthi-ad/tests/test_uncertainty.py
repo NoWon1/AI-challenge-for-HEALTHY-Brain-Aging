@@ -1,9 +1,13 @@
 import numpy as np
-import pandas as pd
-import pytest
 
-from evaluation.uncertainty import BootstrapCI, ConformalPredictor, ReliabilityDiagram, ood_score
 from evaluation.comparison import delong_test
+from evaluation.uncertainty import (
+    BootstrapCI,
+    ConformalPredictor,
+    ReliabilityDiagram,
+    ood_score,
+)
+
 
 def test_bootstrap_ci_contains_point():
     ci = BootstrapCI(n_bootstrap=50, seed=42)

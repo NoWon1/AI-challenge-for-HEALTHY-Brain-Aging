@@ -8,21 +8,20 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 import pandas as pd
-from evaluation.calibration import calibration_bins
-from evaluation.metrics import binary_metrics
-from harmonization.leakage import (
-    assert_disjoint_participants,
-    assert_no_future_features,
-)
-from models.fusion.late_fusion import weighted_score_fusion
-from models.progression.baseline import CognitiveTrajectoryRegressor
-from models.twinlite.retrieval import TwinLiteRetriever
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from demo.synthetic import PUBLIC_COHORTS, DemoCohortBundle
+from evaluation.calibration import calibration_bins
+from evaluation.metrics import binary_metrics
+from harmonization.leakage import (
+    assert_disjoint_participants,
+    assert_no_future_features,
+)
+from models.progression.baseline import CognitiveTrajectoryRegressor
+from models.twinlite.retrieval import TwinLiteRetriever
 
 HORIZONS = (1, 3, 5)
 MODALITY_FEATURES: dict[str, list[str]] = {
@@ -232,7 +231,7 @@ class _LegacyDiscreteTimeRiskEnsemble:
             interval_rows.append(eligible)
         return pd.concat(interval_rows, ignore_index=True)
 
-    def fit(self, frame: pd.DataFrame) -> "DiscreteTimeRiskEnsemble":
+    def fit(self, frame: pd.DataFrame) -> DiscreteTimeRiskEnsemble:
         available = frame[self.feature_columns].notna().any(axis=1)
         training = frame.loc[available].reset_index(drop=True)
         if training.empty:
@@ -786,12 +785,11 @@ class DemoRuntime:
             years_split = np.split(years_arr, boundaries)
             scores_split = np.split(scores_arr, boundaries)
 
-            for year in years[1:]:
-                twin_values = np.array([
-                    np.interp(year, y, s) for y, s in zip(years_split, scores_split)
-                ])
-                twin_dispersion = float(np.std(twin_values)) if len(twin_values) > 1 else 0.0
-                widths.append(float(np.sqrt(self.trajectory_residual_band**2 + (0.35 * twin_dispersion) ** 2)))
+            twin_values = np.array([
+                np.interp(years[1:], y, s) for y, s in zip(years_split, scores_split)
+            ])
+            twin_dispersion = np.std(twin_values, axis=0) if len(twin_values) > 1 else np.zeros(len(years) - 1)
+            widths.extend(np.sqrt(self.trajectory_residual_band**2 + (0.35 * twin_dispersion) ** 2).tolist())
 
         centers = np.clip(centers, 0.0, 30.0)
         widths_array = np.asarray(widths)

@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 from models.progression.mixed_effects import MixedEffectsTrajectory
+
 
 def _make_longitudinal(n=30, seed=99):
     rng = np.random.default_rng(seed)
