@@ -1,8 +1,10 @@
 """MRI feature builders with derived volumetric and atrophy features."""
 from __future__ import annotations
-import numpy as np
+
 import pandas as pd
-from features.base import pivot_modality_features, add_missingness_indicators
+
+from features.base import pivot_modality_features
+
 
 def build_mri_features(features: pd.DataFrame) -> pd.DataFrame:
     wide = pivot_modality_features(features, "mri")

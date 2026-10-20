@@ -1,6 +1,8 @@
-import pandas as pd
 import numpy as np
-from features.genomics.builder import build_genomics_features, _add_derived_genomics
+import pandas as pd
+
+from features.genomics.builder import _add_derived_genomics, build_genomics_features
+
 
 def test_add_derived_genomics_apoe():
     # Test with apoe_e4_count

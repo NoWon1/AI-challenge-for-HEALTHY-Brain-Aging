@@ -1,8 +1,11 @@
 import numpy as np
-import pandas as pd
-import pytest
 
-from evaluation.survival_metrics import concordance_index, integrated_brier_score, calibration_slope
+from evaluation.survival_metrics import (
+    calibration_slope,
+    concordance_index,
+    integrated_brier_score,
+)
+
 
 def test_concordance_index_perfect():
     event_times = np.array([100, 200, 300])
