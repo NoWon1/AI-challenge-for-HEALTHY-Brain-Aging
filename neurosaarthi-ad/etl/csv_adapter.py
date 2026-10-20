@@ -19,7 +19,9 @@ class CsvCohortAdapter(CohortAdapter):
         tables: dict[str, pd.DataFrame] = {}
         base_dir = Path(self.raw_dir).resolve()
         for table_name in ["participants", "visits", "modality_features", "outcomes"]:
-            path = (Path(self.raw_dir) / f"{table_name}.csv").resolve()
+            # Defense-in-depth: Prevent path traversal by extracting only the filename
+            safe_name = Path(table_name).name
+            path = (Path(self.raw_dir) / f"{safe_name}.csv").resolve()
             frame = pd.read_csv(path)
             validate_columns(table_name, list(frame.columns))
             tables[table_name] = frame
