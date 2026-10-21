@@ -43,3 +43,7 @@ This resulted in a 14x speedup (0.27s -> 0.02s in a 1000-row synthetic benchmark
 ## 2026-10-16 - O(N) penalty from loop-based dataframe groupby aggregations and re-merging in synthetic cohort generation
 **Learning:** In pandas, iterating over `.groupby()` objects with a python `for` loop to compute scalar group statistics (e.g., `size`, `mean`) and appending dictionaries to a list introduces significant O(N) looping overhead. The synthetic cohort generator suffered from this pattern.
 **Action:** Replace explicit `for cohort, group in baseline.groupby(...)` loops with fully vectorized aggregations (e.g., `grouped.agg(participants=("participant_id", "size"), rate=("event_by_5y", "mean"))`). Use `.map()` on columns to derive dependent features, completely avoiding explicit python loops.
+
+## 2026-10-24 - O(N) overhead from pandas `groupby().diff()` operations
+**Learning:** In pandas, checking intra-group differences (e.g. for monotonicity) via `df.groupby('id')['time'].diff()` introduces significant overhead due to object tracking and index alignment, especially on large datasets.
+**Action:** Replace this pattern by pre-sorting the DataFrame by the grouping column, ensuring groups are contiguous, and using a fully vectorized NumPy array slice approach: extract the columns as arrays, identify group boundaries with `same_pid = pids[1:] == pids[:-1]`, calculate differences `diffs = vals[1:] - vals[:-1]`, and check conditions using boolean masking like `(diffs[same_pid] >= 0).all()`. This allows checking differences seamlessly and much faster.

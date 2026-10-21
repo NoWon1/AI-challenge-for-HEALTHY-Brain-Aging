@@ -18,7 +18,6 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
-
 DistanceMetric = Literal["euclidean", "mahalanobis", "importance_weighted"]
 
 
@@ -101,7 +100,7 @@ class TwinLiteRetriever:
             state["_reference"] = state["_reference"][keep_cols].copy()
         return state
 
-    def fit(self, frame: pd.DataFrame) -> "TwinLiteRetriever":
+    def fit(self, frame: pd.DataFrame) -> TwinLiteRetriever:
         """Fit the retriever on the training *frame*."""
         self._reference = frame.reset_index(drop=True).copy()
         features = self._reference[self.feature_columns].astype(float)

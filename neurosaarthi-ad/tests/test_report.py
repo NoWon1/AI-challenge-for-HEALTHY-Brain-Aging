@@ -1,5 +1,6 @@
 from evaluation.report import ValidationReport
 
+
 def test_validation_report_to_markdown_no_notes():
     report = ValidationReport(
         title="Test Report",

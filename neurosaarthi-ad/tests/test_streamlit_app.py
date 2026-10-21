@@ -1,8 +1,10 @@
 from pathlib import Path
 
-from dashboards.streamlit_app import _sanitize_markdown, ImmutableRuntimeProxy
-from streamlit.testing.v1 import AppTest
 import pytest
+from streamlit.testing.v1 import AppTest
+
+from dashboards.streamlit_app import ImmutableRuntimeProxy
+
 
 class DummyTarget:
     def __init__(self):

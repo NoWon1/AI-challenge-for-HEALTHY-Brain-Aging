@@ -31,7 +31,7 @@ class CognitiveTrajectoryRegressor:
                 ]
             )
 
-    def fit(self, frame: pd.DataFrame, target_col: str = "future_score") -> "CognitiveTrajectoryRegressor":
+    def fit(self, frame: pd.DataFrame, target_col: str = "future_score") -> CognitiveTrajectoryRegressor:
         if self.pipeline is not None:
             self.pipeline.fit(frame[self.feature_columns], frame[target_col])
             return self
