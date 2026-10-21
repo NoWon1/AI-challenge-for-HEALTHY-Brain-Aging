@@ -28,33 +28,6 @@ from demo.runtime import (
 from demo.synthetic import generate_demo_cohort
 
 
-class ImmutableRuntimeProxy:
-    """
-    Read-only proxy wrapping DemoRuntime to prevent cross-session state corruption
-    when cached via @st.cache_resource (CWE-374 / CWE-662).
-    """
-
-    def __init__(self, target: Any) -> None:
-        super().__setattr__("_target", target)
-
-    def __getattr__(self, name: str) -> Any:
-        attr = getattr(self._target, name)
-        # Protect internal dictionary lookups from in-place modification
-        if isinstance(attr, dict):
-            return MappingProxyType(attr)
-        return attr
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        raise AttributeError(
-            f"Modification of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
-        )
-
-    def __delattr__(self, name: str) -> None:
-        raise AttributeError(
-            f"Deletion of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
-        )
-
-
 COLORS = {
     "teal": "#0F5C5B",
     "teal_dark": "#173B3A",
@@ -109,6 +82,7 @@ def _inject_styles() -> None:
 
 class ImmutableRuntimeProxy:
     """Read-only proxy to prevent cross-session state corruption in Streamlit cache."""
+
     def __init__(self, obj):
         object.__setattr__(self, "_obj", obj)
 
@@ -116,13 +90,23 @@ class ImmutableRuntimeProxy:
         val = getattr(self._obj, name)
         if isinstance(val, dict):
             return types.MappingProxyType(val)
+        if isinstance(val, list):
+            return tuple(val)
+        if isinstance(val, set):
+            return frozenset(val)
+        if isinstance(val, pd.DataFrame):
+            return val.copy(deep=True)
         return val
 
     def __setattr__(self, name, value):
-        raise TypeError(f"Cannot modify cached resource attribute: {name}")
+        raise AttributeError(
+            f"Modification of attribute {name} is forbidden: cached runtime is read-only across sessions."
+        )
 
     def __delattr__(self, name):
-        raise TypeError(f"Cannot delete cached resource attribute: {name}")
+        raise AttributeError(
+            f"Deletion of attribute {name} is forbidden: cached runtime is read-only across sessions."
+        )
 
 
 @st.cache_resource(show_spinner="Preparing the synthetic seven-cohort workbench…")
@@ -332,10 +316,10 @@ def _profile_controls() -> ParticipantProfile:
 
 
 def _risk_card(row: dict) -> str:
-    horizon = str(int(row['horizon']))
-    risk = f"{row['risk']:.0%}"
-    lower = f"{row['lower']:.0%}"
-    upper = f"{row['upper']:.0%}"
+    horizon = html.escape(str(int(row["horizon"])))
+    risk = html.escape(f"{row['risk']:.0%}")
+    lower = html.escape(f"{row['lower']:.0%}")
+    upper = html.escape(f"{row['upper']:.0%}")
     return f"""
     <div class="ns-risk">
       <div class="label">{horizon}-year progression risk</div>
