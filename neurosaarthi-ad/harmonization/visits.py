@@ -16,11 +16,17 @@ def add_baseline_offsets(visits: pd.DataFrame, participant_col: str = "participa
 
 
 def require_monotonic_visits(visits: pd.DataFrame, participant_col: str = "participant_id", order_col: str = "visit_index") -> None:
-    # ⚡ Bolt: Fast-path vectorised monotonicity check avoids slow loops for the happy path
+    # ⚡ Bolt: Fast-path vectorised monotonicity check avoids slow .groupby() loops for the happy path
     if visits.empty:
         return
 
-    if visits.groupby(participant_col, sort=False)[order_col].diff().fillna(0).ge(0).all():
+    sorted_visits = visits.sort_values(participant_col, kind="mergesort")
+    p_arr = sorted_visits[participant_col].to_numpy()
+    v_arr = sorted_visits[order_col].to_numpy()
+    same_pid = p_arr[1:] == p_arr[:-1]
+    diffs = v_arr[1:] - v_arr[:-1]
+
+    if bool((diffs[same_pid] >= 0).all()):
         return
 
     for participant_id, group in visits.groupby(participant_col, sort=False):

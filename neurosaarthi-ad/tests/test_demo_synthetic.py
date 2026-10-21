@@ -14,8 +14,13 @@ def test_default_demo_cohort_has_840_longitudinal_participants():
     assert participants["synthetic"].all()
     visit_counts = visits.groupby("participant_id").size()
     assert visit_counts.between(3, 6).all()
-    # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop
-    assert visits.groupby("participant_id", sort=False)["baseline_days"].diff().fillna(0).ge(0).all()
+    # ⚡ Bolt: Vectorized monotonicity check avoids slow .groupby() loop
+    sorted_visits = visits.sort_values("participant_id", kind="mergesort")
+    p_arr = sorted_visits["participant_id"].to_numpy()
+    v_arr = sorted_visits["baseline_days"].to_numpy()
+    same_pid = p_arr[1:] == p_arr[:-1]
+    diffs = v_arr[1:] - v_arr[:-1]
+    assert bool((diffs[same_pid] >= 0).all()) if len(sorted_visits) > 0 else True
 
     for name, frame in {
         "participants": bundle.tables.participants,
