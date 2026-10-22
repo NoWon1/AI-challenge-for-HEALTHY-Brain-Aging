@@ -1,7 +1,9 @@
-import pytest
-from pathlib import Path
+
 import pandas as pd
+import pytest
+
 from etl.csv_adapter import CsvCohortAdapter
+
 
 @pytest.fixture
 def valid_csv_dir(tmp_path):

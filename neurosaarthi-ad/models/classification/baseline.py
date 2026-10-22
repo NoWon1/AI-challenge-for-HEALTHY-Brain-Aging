@@ -31,7 +31,7 @@ class RiskClassifier:
                 ]
             )
 
-    def fit(self, frame: pd.DataFrame, target_col: str = "event") -> "RiskClassifier":
+    def fit(self, frame: pd.DataFrame, target_col: str = "event") -> RiskClassifier:
         if self.pipeline is not None:
             self.pipeline.fit(frame[self.feature_columns], frame[target_col])
             return self

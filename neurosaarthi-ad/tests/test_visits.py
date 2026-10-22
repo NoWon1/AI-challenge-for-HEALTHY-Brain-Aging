@@ -1,6 +1,8 @@
 import pandas as pd
 import pytest
+
 from harmonization.visits import require_monotonic_visits
+
 
 def test_require_monotonic_visits_happy_path():
     df = pd.DataFrame({

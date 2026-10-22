@@ -43,3 +43,7 @@ This resulted in a 14x speedup (0.27s -> 0.02s in a 1000-row synthetic benchmark
 ## 2026-10-16 - O(N) penalty from loop-based dataframe groupby aggregations and re-merging in synthetic cohort generation
 **Learning:** In pandas, iterating over `.groupby()` objects with a python `for` loop to compute scalar group statistics (e.g., `size`, `mean`) and appending dictionaries to a list introduces significant O(N) looping overhead. The synthetic cohort generator suffered from this pattern.
 **Action:** Replace explicit `for cohort, group in baseline.groupby(...)` loops with fully vectorized aggregations (e.g., `grouped.agg(participants=("participant_id", "size"), rate=("event_by_5y", "mean"))`). Use `.map()` on columns to derive dependent features, completely avoiding explicit python loops.
+
+## 2026-10-20 - Vectorized 1D interpolation across multiple evaluation points
+**Learning:** Using `np.interp` repeatedly inside a Python loop (or list comprehension) over multiple target evaluation points introduces significant interpreter overhead, especially when interpolating many independent trajectories (e.g. twin records) sequentially.
+**Action:** Replace iterations over target evaluation points with a single vectorized call by passing the entire array of evaluation points to `np.interp`'s first argument. Combine this with `np.std(axis=0)` or other vectorized reductions to process all target points simultaneously.

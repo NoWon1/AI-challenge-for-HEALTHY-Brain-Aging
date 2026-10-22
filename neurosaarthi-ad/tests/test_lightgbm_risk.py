@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 from models.classification.lightgbm_risk import GBMRiskClassifier
+
 
 def _make_synthetic(n=50, seed=99):
     rng = np.random.default_rng(seed)

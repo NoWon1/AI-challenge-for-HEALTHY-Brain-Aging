@@ -1,9 +1,10 @@
-import pytest
 import numpy as np
 import pandas as pd
+import pytest
 from sklearn.exceptions import NotFittedError
 
 from models.survival.gradient_boosting import GradientBoostingSurvivalModel
+
 
 def generate_mock_data():
     np.random.seed(42)

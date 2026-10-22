@@ -80,7 +80,7 @@ class SHAPExplainer:
                 # Initialize kernel explainer with a background sample if needed
                 if self._explainer is None:
                     # using K-means for background data could be added here
-                    predict_fn = getattr(self.model, "predict_proba", getattr(self.model, "predict"))
+                    predict_fn = getattr(self.model, "predict_proba", self.model.predict)
                     # 100 samples as background
                     bg = shap.sample(X, 100) if len(X) > 100 else X
                     self._explainer = shap.KernelExplainer(predict_fn, bg)
