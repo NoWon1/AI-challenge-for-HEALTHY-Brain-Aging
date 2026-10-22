@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.metrics import roc_auc_score
 
 from evaluation.comparison import bootstrap_comparison
-from sklearn.metrics import roc_auc_score
+
 
 def test_bootstrap_identical_models():
     """Test that two identical models have delta 0 and p-value 1.0."""
@@ -78,7 +79,7 @@ def test_bootstrap_pandas_series():
 
 
 def test_select_best_model():
-    from evaluation.comparison import select_best_model, ModelComparisonReport
+    from evaluation.comparison import ModelComparisonReport, select_best_model
 
     reports = [
         ModelComparisonReport(model_name="ModelA", metrics_dict={"auroc": 0.8}, cohort="external"),
@@ -92,7 +93,7 @@ def test_select_best_model():
     assert select_best_model(reports, metric="auroc", validation_set="unknown_cohort") is None
 
 def test_compare_models():
-    from evaluation.comparison import compare_models, ModelComparisonReport
+    from evaluation.comparison import ModelComparisonReport, compare_models
 
     reports = [
         ModelComparisonReport(model_name="ModelA", metrics_dict={"auroc": 0.8, "f1": 0.7}, cohort="external"),

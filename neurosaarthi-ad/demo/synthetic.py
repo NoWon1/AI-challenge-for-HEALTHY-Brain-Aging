@@ -16,7 +16,6 @@ import pandas as pd
 
 from etl.base import CohortTables
 
-
 COHORTS = ("ADNI", "NACC", "AIBL", "OASIS", "UK Biobank", "TLSA", "SANSCOG")
 PUBLIC_COHORTS = frozenset({"ADNI", "NACC", "AIBL", "OASIS", "UK Biobank"})
 INDIAN_COHORTS = frozenset({"TLSA", "SANSCOG"})

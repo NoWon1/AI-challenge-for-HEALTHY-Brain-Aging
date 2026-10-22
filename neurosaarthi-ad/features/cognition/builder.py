@@ -1,8 +1,10 @@
 """Cognitive feature builders with composite scores and reserve proxies."""
 from __future__ import annotations
-import numpy as np
+
 import pandas as pd
+
 from features.base import pivot_modality_features
+
 
 def build_cognition_features(features: pd.DataFrame) -> pd.DataFrame:
     wide = pivot_modality_features(features, "cognition")

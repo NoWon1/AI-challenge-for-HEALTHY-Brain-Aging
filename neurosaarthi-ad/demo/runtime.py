@@ -8,21 +8,20 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 import pandas as pd
-from evaluation.calibration import calibration_bins
-from evaluation.metrics import binary_metrics
-from harmonization.leakage import (
-    assert_disjoint_participants,
-    assert_no_future_features,
-)
-from models.fusion.late_fusion import weighted_score_fusion
-from models.progression.baseline import CognitiveTrajectoryRegressor
-from models.twinlite.retrieval import TwinLiteRetriever
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from demo.synthetic import PUBLIC_COHORTS, DemoCohortBundle
+from evaluation.calibration import calibration_bins
+from evaluation.metrics import binary_metrics
+from harmonization.leakage import (
+    assert_disjoint_participants,
+    assert_no_future_features,
+)
+from models.progression.baseline import CognitiveTrajectoryRegressor
+from models.twinlite.retrieval import TwinLiteRetriever
 
 HORIZONS = (1, 3, 5)
 MODALITY_FEATURES: dict[str, list[str]] = {
@@ -232,7 +231,7 @@ class _LegacyDiscreteTimeRiskEnsemble:
             interval_rows.append(eligible)
         return pd.concat(interval_rows, ignore_index=True)
 
-    def fit(self, frame: pd.DataFrame) -> "DiscreteTimeRiskEnsemble":
+    def fit(self, frame: pd.DataFrame) -> DiscreteTimeRiskEnsemble:
         available = frame[self.feature_columns].notna().any(axis=1)
         training = frame.loc[available].reset_index(drop=True)
         if training.empty:
@@ -745,10 +744,12 @@ class DemoRuntime:
         feature_units = self.bundle.tables.modality_features[["feature_name", "unit"]].drop_duplicates()
         units_valid = all(canonical_units[row.feature_name] == row.unit for row in feature_units.itertuples())
         visits = self.bundle.tables.visits.sort_values(["participant_id", "visit_index"])
-        # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop
-        visits_monotonic = bool(
-            visits.groupby("participant_id", sort=False)["baseline_days"].diff().fillna(0).ge(0).all()
-        )
+        # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop and slow .groupby() overhead
+        pids = visits["participant_id"].to_numpy()
+        days = visits["baseline_days"].to_numpy()
+        same_pid = pids[1:] == pids[:-1]
+        diffs = days[1:] - days[:-1]
+        visits_monotonic = bool(np.all(diffs[same_pid] >= 0)) if len(visits) > 1 else True
         checks = [
             ("Participant split isolation", True, "No person appears in training and validation."),
             ("Future-visit leakage guard", True, "Features are anchored at or before each prediction visit."),
