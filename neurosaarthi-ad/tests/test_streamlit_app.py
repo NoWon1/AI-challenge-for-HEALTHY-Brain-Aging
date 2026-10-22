@@ -5,11 +5,14 @@ from streamlit.testing.v1 import AppTest
 
 from dashboards.streamlit_app import ImmutableRuntimeProxy
 
+import pandas as pd
 
 class DummyTarget:
     def __init__(self):
         self.value = 42
         self.config = {"key": "value"}
+        self.lst = [1, 2, 3]
+        self.df = pd.DataFrame({"col": [1]})
 
 def test_immutable_runtime_proxy():
     target = DummyTarget()
@@ -27,6 +30,14 @@ def test_immutable_runtime_proxy():
     # Test dictionary mapping proxy
     with pytest.raises(TypeError):
         proxy.config["key"] = "new_value"
+
+    # Test list tuple proxy
+    assert proxy.lst == (1, 2, 3)
+
+    # Test DataFrame proxy
+    df_copy = proxy.df
+    df_copy.loc[0, "col"] = 99
+    assert proxy.df.loc[0, "col"] == 1  # Should not affect the original
 
 def test_streamlit_judge_demo_smoke():
     app_path = Path(__file__).parents[1] / "dashboards" / "streamlit_app.py"
