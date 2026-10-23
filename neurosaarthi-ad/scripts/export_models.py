@@ -19,29 +19,37 @@ bundle = generate_demo_cohort(seed=42, n_per_cohort=120)
 runtime = build_demo_runtime(bundle=bundle, n_bootstrap=1)
 
 # 2. Save classification pipelines (LightGBM)
-for modality, ensemble in getattr(runtime, 'risk_models', {}).items():
-    path = OUT_DIR / f"risk_{modality.replace('+', '').replace('/', '_').replace(' ', '_')}.joblib"
+for modality, ensemble in getattr(runtime, "risk_models", {}).items():
+    safe_modality = (
+        Path(modality).name.replace("+", "").replace("/", "_").replace(" ", "_")
+    )
+    path = OUT_DIR / f"risk_{safe_modality}.joblib"
+    if not path.resolve().is_relative_to(OUT_DIR.resolve()):
+        raise ValueError(f"Path traversal detected in modality name: {modality}")
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, 'wb') as f:
+    with os.fdopen(fd, "wb") as f:
         joblib.dump(ensemble, f)
 
 # 3. Save survival models (RSF / CoxBoost)
-for model_name, model in getattr(runtime, 'survival_models', {}).items():
-    path = OUT_DIR / f"survival_{model_name}.joblib"
+for model_name, model in getattr(runtime, "survival_models", {}).items():
+    safe_model_name = Path(model_name).name
+    path = OUT_DIR / f"survival_{safe_model_name}.joblib"
+    if not path.resolve().is_relative_to(OUT_DIR.resolve()):
+        raise ValueError(f"Path traversal detected in model name: {model_name}")
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, 'wb') as f:
+    with os.fdopen(fd, "wb") as f:
         joblib.dump(model, f)
 
 # 4. Save the cognitive-trajectory regressor
 path = OUT_DIR / "progression_regressor.joblib"
 fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-with os.fdopen(fd, 'wb') as f:
+with os.fdopen(fd, "wb") as f:
     joblib.dump(runtime.trajectory_model, f)
 
 # 5. Save the twin-lite retrieval index
 path = OUT_DIR / "twinlite_retriever.joblib"
 fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-with os.fdopen(fd, 'wb') as f:
+with os.fdopen(fd, "wb") as f:
     joblib.dump(runtime.twin_retriever, f)
 
 # 6. Save config / feature metadata
@@ -49,8 +57,13 @@ config = {
     "horizons": [1, 3, 5],
     "modality_features": {
         "Cognition + clinical": [
-            "age", "education_years", "sex_binary", "rural_indicator",
-            "cognitive_score", "memory_score", "executive_score",
+            "age",
+            "education_years",
+            "sex_binary",
+            "rural_indicator",
+            "cognitive_score",
+            "memory_score",
+            "executive_score",
         ],
         "MRI": ["hippocampal_volume_mm3", "wmh_burden_ml"],
         "Blood": ["hba1c_percent", "hs_crp_mg_l"],
@@ -69,7 +82,7 @@ config = {
 }
 path = OUT_DIR / "config.json"
 fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-with os.fdopen(fd, 'w') as f:
+with os.fdopen(fd, "w") as f:
     json.dump(config, f, indent=2)
 
 print(f" All artifacts saved to {OUT_DIR.resolve()}")
