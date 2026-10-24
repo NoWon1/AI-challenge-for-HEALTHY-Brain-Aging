@@ -787,12 +787,21 @@ class DemoRuntime:
             years_split = np.split(years_arr, boundaries)
             scores_split = np.split(scores_arr, boundaries)
 
-            for year in years[1:]:
-                twin_values = np.array([
-                    np.interp(year, y, s) for y, s in zip(years_split, scores_split)
-                ])
-                twin_dispersion = float(np.std(twin_values)) if len(twin_values) > 1 else 0.0
-                widths.append(float(np.sqrt(self.trajectory_residual_band**2 + (0.35 * twin_dispersion) ** 2)))
+            target_years = years[1:]
+
+            # ⚡ Bolt: Vectorize 1D interpolation across all target years simultaneously
+            # to eliminate repeated Python loop and list comprehension overhead
+            twin_values_matrix = np.array([
+                np.interp(target_years, y, s) for y, s in zip(years_split, scores_split)
+            ])
+
+            if len(twin_values_matrix) > 1:
+                twin_dispersions = np.std(twin_values_matrix, axis=0)
+            else:
+                twin_dispersions = np.zeros(len(target_years))
+
+            for disp in twin_dispersions:
+                widths.append(float(np.sqrt(self.trajectory_residual_band**2 + (0.35 * disp) ** 2)))
 
         centers = np.clip(centers, 0.0, 30.0)
         widths_array = np.asarray(widths)
