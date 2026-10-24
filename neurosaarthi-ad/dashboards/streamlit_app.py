@@ -80,6 +80,57 @@ def _inject_styles() -> None:
     )
 
 
+from collections.abc import Mapping, Sequence, Set as AbstractSet
+
+def _secure_value(val):
+    if isinstance(val, dict):
+        return ImmutableDictProxy(val)
+    if isinstance(val, list):
+        return ImmutableListProxy(val)
+    if isinstance(val, set):
+        return ImmutableSetProxy(val)
+    if isinstance(val, pd.DataFrame):
+        return val.copy(deep=True)
+    return val
+
+class ImmutableDictProxy(Mapping):
+    def __init__(self, d):
+        self._d = d
+    def __getitem__(self, key):
+        return _secure_value(self._d[key])
+    def __iter__(self):
+        return iter(self._d)
+    def __len__(self):
+        return len(self._d)
+
+class ImmutableListProxy(Sequence):
+    def __init__(self, lst):
+        self._lst = lst
+    def __getitem__(self, idx):
+        return _secure_value(self._lst[idx])
+    def __len__(self):
+        return len(self._lst)
+    def __eq__(self, other):
+        if not isinstance(other, (list, tuple, Sequence)):
+            return False
+        if len(self) != len(other):
+            return False
+        return all(a == b for a, b in zip(self, other))
+
+class ImmutableSetProxy(AbstractSet):
+    def __init__(self, s):
+        self._s = s
+    def __contains__(self, item):
+        return item in self._s
+    def __iter__(self):
+        return (_secure_value(x) for x in self._s)
+    def __len__(self):
+        return len(self._s)
+    def __eq__(self, other):
+        if not isinstance(other, (set, frozenset, AbstractSet)):
+            return False
+        return set(self) == set(other)
+
 class ImmutableRuntimeProxy:
     """Read-only proxy to prevent cross-session state corruption in Streamlit cache."""
 
@@ -88,15 +139,7 @@ class ImmutableRuntimeProxy:
 
     def __getattr__(self, name):
         val = getattr(self._obj, name)
-        if isinstance(val, dict):
-            return types.MappingProxyType(val)
-        if isinstance(val, list):
-            return tuple(val)
-        if isinstance(val, set):
-            return frozenset(val)
-        if isinstance(val, pd.DataFrame):
-            return val.copy(deep=True)
-        return val
+        return _secure_value(val)
 
     def __setattr__(self, name, value):
         raise AttributeError(
