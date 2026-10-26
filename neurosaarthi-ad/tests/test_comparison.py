@@ -105,3 +105,20 @@ def test_compare_models():
     assert list(df.columns) == ["model_name", "cohort", "auroc", "f1"]
     assert df.iloc[0]["model_name"] == "ModelA"
     assert df.iloc[1]["auroc"] == 0.85
+
+def test_select_best_model_empty_reports():
+    """Test select_best_model with an empty list of reports."""
+    from evaluation.comparison import select_best_model
+    assert select_best_model([], metric="auroc", validation_set="external") is None
+
+
+def test_select_best_model_missing_metric():
+    """Test select_best_model when some reports lack the requested metric."""
+    from evaluation.comparison import ModelComparisonReport, select_best_model
+    reports = [
+        ModelComparisonReport(model_name="ModelA", metrics_dict={"auroc": 0.8}, cohort="external"),
+        ModelComparisonReport(model_name="ModelB", metrics_dict={"other_metric": 0.95}, cohort="external"), # Missing auroc
+        ModelComparisonReport(model_name="ModelC", metrics_dict={"auroc": 0.85}, cohort="external")
+    ]
+    # Model B should be ignored, Model C is the best of the remaining valid reports
+    assert select_best_model(reports, metric="auroc", validation_set="external") == "ModelC"
