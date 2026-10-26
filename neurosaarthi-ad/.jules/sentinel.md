@@ -12,3 +12,8 @@
 **Vulnerability:** The `scripts/export_models.py` script constructed model export paths using unvalidated dynamic inputs (`modality` and `model_name`), leaving it vulnerable to Path Traversal (CWE-22) if untrusted configurations were processed.
 **Learning:** Even internal helper scripts must sanitize dynamically generated file paths (using `Path(name).name`) and perform strict bounds-checking against the intended target directory to prevent adversarial configurations from writing artifacts outside of restricted scopes.
 **Prevention:** Sanitize dynamic filename components by stripping directory parts using `Path(name).name`, and enforce explicit path resolution validation by ensuring the resolved path is within the intended base directory using `path.resolve().is_relative_to(base_dir)`.
+
+## 2026-10-26 - Fix Cross-Session State Corruption via Shallow Tuple Immutability (CWE-374)
+**Vulnerability:** CWE-374 (Passing Mutable Objects to an Untrusted Method / Cross-Session State Corruption)
+**Learning:** The `_secure_value` transformation recursively converts mutable structures (dicts, lists, sets) into immutable representations. However, standard `tuple` types were unhandled. Because Python tuples are shallowly immutable, tuples enclosing mutable children (e.g., `tuple[dict]`) passed through unaltered. This permitted concurrent Streamlit threads and subsequent user sessions to mutate global runtime state via nested key assignment.
+**Prevention:** Extended `_secure_value` to traverse `tuple` objects recursively, securing inner elements while preserving `namedtuple` signatures via `_make()`. Added regression tests confirming that attempting item assignment on a dictionary nested within a tuple raises `TypeError`.

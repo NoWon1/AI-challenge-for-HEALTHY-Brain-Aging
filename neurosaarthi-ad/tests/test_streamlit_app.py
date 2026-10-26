@@ -31,8 +31,30 @@ def test_immutable_runtime_proxy():
     with pytest.raises(TypeError):
         proxy.config["key"] = "new_value"
 
-    # Test list tuple proxy
+    # Test list proxy
     assert proxy.lst == (1, 2, 3)
+
+    # Test standard tuple proxy (nested mutable state)
+    target.tup = ({"nested": "val"},)
+    with pytest.raises(TypeError):
+        proxy.tup[0]["nested"] = "tampered"
+
+    # Test multi-layer nested collections inside tuple
+    target.multi_tup = ([{"deep": [1, 2, 3]}],)
+    with pytest.raises(TypeError): # ImmutableListProxy doesn't have item assignment
+        proxy.multi_tup[0][0] = "tampered"
+
+    with pytest.raises(TypeError):
+        proxy.multi_tup[0][0]["deep"][0] = 99
+
+    # Test namedtuple proxy preservation
+    from collections import namedtuple
+    Record = namedtuple("Record", ["metadata", "tag"])
+    target.rec = Record(metadata={"status": "active"}, tag="prod")
+    assert proxy.rec.tag == "prod"
+    assert isinstance(proxy.rec, Record)
+    with pytest.raises(TypeError):
+        proxy.rec.metadata["status"] = "revoked"
 
     # Test DataFrame proxy
     df_copy = proxy.df

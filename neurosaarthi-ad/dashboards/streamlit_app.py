@@ -89,6 +89,11 @@ def _secure_value(val):
         return ImmutableListProxy(val)
     if isinstance(val, set):
         return ImmutableSetProxy(val)
+    if isinstance(val, tuple):
+        secured_elements = (_secure_value(x) for x in val)
+        if hasattr(val, "_fields") and callable(getattr(val, "_make", None)):
+            return val._make(secured_elements)
+        return tuple(secured_elements)
     if isinstance(val, pd.DataFrame):
         return val.copy(deep=True)
     return val
