@@ -39,3 +39,8 @@
 **Vulnerability:** The generic CSV data adapter `CsvCohortAdapter` dynamically constructed file paths for loading CSV files using `Path(self.raw_dir) / f"{table_name}.csv"`. While `table_name` is currently static, this pattern lacked explicit containment verification.
 **Learning:** Hardcoded strings or fixed loops can still be refactored or exposed in the future. We initially learned that strict `is_relative_to` containment checks break legitimate dataset symlinking workflows. However, leaving the path unvalidated is a classic defense-in-depth failure (CWE-22).
 **Prevention:** Instead of blocking all symlinks or ignoring containment entirely, secure the path by stripping directory components from the input using `Path(table_name).name` to ensure only flat file names within the directory are targeted, avoiding path traversal issues even if the input comes from an untrusted source.
+
+## 2026-10-26 - [Prevented Cross-Session State Corruption in Streamlit Cache for Nested Collections (CWE-374 / CWE-662)]
+**Vulnerability:** The `ImmutableRuntimeProxy` for cached objects in `dashboards/streamlit_app.py` protected only top-level dictionaries and lists, allowing nested mutable collections (like lists inside dicts) to be modified in-place within the global Streamlit cache.
+**Learning:** Shared mutable state in Streamlit's `@st.cache_resource` must be protected at all nesting levels to prevent severe cross-session contamination (CWE-374) and data leakage between concurrent users.
+**Prevention:** Extend defensive proxies with a recursive function (e.g., `_freeze_value`) to intercept and freeze elements within mutable sequences/collections (dicts, lists, sets) and namedtuples recursively when wrapping cached objects.

@@ -1,2 +1,1 @@
 """TLSA ETL adapter package."""
-

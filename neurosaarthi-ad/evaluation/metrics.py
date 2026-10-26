@@ -19,11 +19,15 @@ def _roc_auc_fallback(y_true: pd.Series, y_score: pd.Series) -> float:
         raise ValueError("AUROC requires at least one positive and one negative")
     ranks = np.arange(1, len(frame) + 1)
     positive_rank_sum = float(ranks[frame["y"].to_numpy() == 1].sum())
-    return (positive_rank_sum - positives * (positives + 1) / 2) / (positives * negatives)
+    return (positive_rank_sum - positives * (positives + 1) / 2) / (
+        positives * negatives
+    )
 
 
 def _average_precision_fallback(y_true: pd.Series, y_score: pd.Series) -> float:
-    frame = pd.DataFrame({"y": y_true, "score": y_score}).sort_values("score", ascending=False)
+    frame = pd.DataFrame({"y": y_true, "score": y_score}).sort_values(
+        "score", ascending=False
+    )
     y_arr = frame["y"].to_numpy()
     positives = int(y_arr.sum())
     if positives == 0:

@@ -10,13 +10,13 @@ import pandas as pd
 
 try:
     import shap
+
     HAS_SHAP = True
 except ImportError:
     shap = None
     HAS_SHAP = False
 
 try:
-    from sklearn.inspection import permutation_importance
     HAS_SKLEARN = True
 except ImportError:
     HAS_SKLEARN = False
@@ -26,12 +26,13 @@ except ImportError:
 class SHAPExplainer:
     """
     Wrapper for SHAP-based feature attribution explainability.
-    
+
     Attributes:
         model: The trained model to explain.
         feature_names: List of feature names matching model inputs.
         model_type: Either 'tree' or 'kernel'. Auto-detected if 'auto'.
     """
+
     model: Any
     feature_names: list[str]
     model_type: str = "auto"
@@ -41,7 +42,10 @@ class SHAPExplainer:
         if self.model_type == "auto":
             # Simple heuristic for auto-detection
             model_name = type(self.model).__name__.lower()
-            if any(x in model_name for x in ["forest", "tree", "gbm", "xgb", "lgb", "catboost"]):
+            if any(
+                x in model_name
+                for x in ["forest", "tree", "gbm", "xgb", "lgb", "catboost"]
+            ):
                 self.model_type = "tree"
             else:
                 self.model_type = "kernel"
@@ -75,40 +79,52 @@ class SHAPExplainer:
                 # Handle binary classification outputs which sometimes return list of arrays
                 if isinstance(shap_values, list):
                     shap_values = shap_values[1]
-                return pd.DataFrame(shap_values, columns=self.feature_names, index=frame.index)
+                return pd.DataFrame(
+                    shap_values, columns=self.feature_names, index=frame.index
+                )
             else:
                 # Initialize kernel explainer with a background sample if needed
                 if self._explainer is None:
                     # using K-means for background data could be added here
-                    predict_fn = getattr(self.model, "predict_proba", self.model.predict)
+                    predict_fn = getattr(
+                        self.model, "predict_proba", self.model.predict
+                    )
                     # 100 samples as background
                     bg = shap.sample(X, 100) if len(X) > 100 else X
                     self._explainer = shap.KernelExplainer(predict_fn, bg)
-                
+
                 shap_values = self._explainer.shap_values(X)
                 if isinstance(shap_values, list):
                     shap_values = shap_values[1]
-                return pd.DataFrame(shap_values, columns=self.feature_names, index=frame.index)
-        
+                return pd.DataFrame(
+                    shap_values, columns=self.feature_names, index=frame.index
+                )
+
         # Fallback to permutation importance approximation if SHAP is missing
         # This will just return global importances broadcasted to the frame shape
         # It's an approximation since permutation importance is global, not local
         importances = self._fallback_importance(X)
-        return pd.DataFrame([importances] * len(X), columns=self.feature_names, index=frame.index)
+        return pd.DataFrame(
+            [importances] * len(X), columns=self.feature_names, index=frame.index
+        )
 
     def _fallback_importance(self, X: pd.DataFrame) -> dict[str, float]:
         """Fallback to simple feature importances or permutation importance."""
         if hasattr(self.model, "feature_importances_"):
             return dict(zip(self.feature_names, self.model.feature_importances_))
-        
+
         if hasattr(self.model, "coef_"):
-            coef = self.model.coef_[0] if self.model.coef_.ndim > 1 else self.model.coef_
+            coef = (
+                self.model.coef_[0] if self.model.coef_.ndim > 1 else self.model.coef_
+            )
             return dict(zip(self.feature_names, np.abs(coef)))
 
         # Return dummy importances if nothing works
         return {f: 1.0 / len(self.feature_names) for f in self.feature_names}
 
-    def explain_modality_groups(self, frame: pd.DataFrame, modality_map: dict[str, list[str]]) -> pd.DataFrame:
+    def explain_modality_groups(
+        self, frame: pd.DataFrame, modality_map: dict[str, list[str]]
+    ) -> pd.DataFrame:
         """
         Aggregate SHAP values by modality group.
 
@@ -121,14 +137,14 @@ class SHAPExplainer:
         """
         shap_df = self.explain(frame)
         modality_df = pd.DataFrame(index=shap_df.index)
-        
+
         for modality, features in modality_map.items():
             valid_features = [f for f in features if f in shap_df.columns]
             if valid_features:
                 modality_df[modality] = shap_df[valid_features].abs().sum(axis=1)
             else:
                 modality_df[modality] = 0.0
-                
+
         return modality_df
 
     def top_drivers(self, frame: pd.DataFrame, k: int = 5) -> pd.DataFrame:
@@ -143,7 +159,7 @@ class SHAPExplainer:
             DataFrame with top-k feature names and their SHAP values.
         """
         shap_df = self.explain(frame)
-        
+
         # ⚡ Bolt: Replaced slow .iterrows() with vectorized numpy operations (~100x faster for 10k rows)
         shap_vals = shap_df.values
         abs_shap_vals = np.abs(shap_vals)
@@ -161,11 +177,11 @@ class SHAPExplainer:
         results_dict = {}
         for i in range(k):
             if i < actual_k:
-                results_dict[f"feature_{i+1}"] = top_feats[:, i]
-                results_dict[f"value_{i+1}"] = top_vals[:, i]
+                results_dict[f"feature_{i + 1}"] = top_feats[:, i]
+                results_dict[f"value_{i + 1}"] = top_vals[:, i]
             else:
-                results_dict[f"feature_{i+1}"] = [None] * shap_vals.shape[0]
-                results_dict[f"value_{i+1}"] = [None] * shap_vals.shape[0]
+                results_dict[f"feature_{i + 1}"] = [None] * shap_vals.shape[0]
+                results_dict[f"value_{i + 1}"] = [None] * shap_vals.shape[0]
 
         return pd.DataFrame(results_dict, index=frame.index)
         # ⚡ Bolt: Vectorized top-K extraction avoids slow .iterrows() loop
@@ -175,14 +191,16 @@ class SHAPExplainer:
 
         if k_actual > 0:
             # Get the indices of the top k elements along each row
-            top_k_idx = np.argpartition(-abs_vals, kth=k_actual-1, axis=1)[:, :k_actual]
-            
+            top_k_idx = np.argpartition(-abs_vals, kth=k_actual - 1, axis=1)[
+                :, :k_actual
+            ]
+
             # Sort the top k elements
             row_indices = np.arange(vals.shape[0])[:, None]
             top_k_abs_vals = abs_vals[row_indices, top_k_idx]
             sorted_top_k_order = np.argsort(-top_k_abs_vals, axis=1)
             sorted_top_k_idx = top_k_idx[row_indices, sorted_top_k_order]
-            
+
             features = np.array(shap_df.columns)
             top_features = features[sorted_top_k_idx]
             top_values = vals[row_indices, sorted_top_k_idx]
@@ -190,11 +208,11 @@ class SHAPExplainer:
         result_dict = {}
         for i in range(k):
             if i < k_actual:
-                result_dict[f"feature_{i+1}"] = top_features[:, i]
-                result_dict[f"value_{i+1}"] = top_values[:, i]
+                result_dict[f"feature_{i + 1}"] = top_features[:, i]
+                result_dict[f"value_{i + 1}"] = top_values[:, i]
             else:
-                result_dict[f"feature_{i+1}"] = None
-                result_dict[f"value_{i+1}"] = None
+                result_dict[f"feature_{i + 1}"] = None
+                result_dict[f"value_{i + 1}"] = None
 
         return pd.DataFrame(result_dict, index=frame.index)
 
@@ -211,10 +229,14 @@ class SHAPExplainer:
             importances = self.model.feature_importances_
             df = pd.DataFrame({"importance": importances}, index=self.feature_names)
             return df.sort_values("importance", ascending=False)
-            
+
         if hasattr(self.model, "coef_"):
-            coef = self.model.coef_[0] if self.model.coef_.ndim > 1 else self.model.coef_
+            coef = (
+                self.model.coef_[0] if self.model.coef_.ndim > 1 else self.model.coef_
+            )
             df = pd.DataFrame({"importance": np.abs(coef)}, index=self.feature_names)
             return df.sort_values("importance", ascending=False)
-            
-        raise NotImplementedError("Global importance without data is only supported for models with feature_importances_ or coef_")
+
+        raise NotImplementedError(
+            "Global importance without data is only supported for models with feature_importances_ or coef_"
+        )

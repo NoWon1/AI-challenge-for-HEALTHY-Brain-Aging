@@ -17,7 +17,6 @@ class CsvCohortAdapter(CohortAdapter):
 
     def extract(self) -> CohortTables:
         tables: dict[str, pd.DataFrame] = {}
-        base_dir = Path(self.raw_dir).resolve()
         for table_name in ["participants", "visits", "modality_features", "outcomes"]:
             # Defense-in-depth: Prevent path traversal by extracting only the filename
             safe_name = Path(table_name).name
@@ -26,4 +25,3 @@ class CsvCohortAdapter(CohortAdapter):
             validate_columns(table_name, list(frame.columns))
             tables[table_name] = frame
         return CohortTables(**tables)
-

@@ -12,8 +12,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import re
 import types
-from types import MappingProxyType
-from typing import Any
 
 import altair as alt
 import pandas as pd
@@ -26,7 +24,6 @@ from demo.runtime import (
     profile_with,
 )
 from demo.synthetic import generate_demo_cohort
-
 
 COLORS = {
     "teal": "#0F5C5B",
@@ -87,16 +84,25 @@ class ImmutableRuntimeProxy:
         object.__setattr__(self, "_obj", obj)
 
     def __getattr__(self, name):
+        def _freeze_value(val):
+            if isinstance(val, dict):
+                return types.MappingProxyType(
+                    {k: _freeze_value(v) for k, v in val.items()}
+                )
+            if isinstance(val, list):
+                return tuple(_freeze_value(x) for x in val)
+            if isinstance(val, set):
+                return frozenset(_freeze_value(x) for x in val)
+            if isinstance(val, tuple):
+                if hasattr(val, "_fields"):  # namedtuple
+                    return type(val)(*(_freeze_value(x) for x in val))
+                return tuple(_freeze_value(x) for x in val)
+            if isinstance(val, pd.DataFrame):
+                return val.copy(deep=True)
+            return val
+
         val = getattr(self._obj, name)
-        if isinstance(val, dict):
-            return types.MappingProxyType(val)
-        if isinstance(val, list):
-            return tuple(val)
-        if isinstance(val, set):
-            return frozenset(val)
-        if isinstance(val, pd.DataFrame):
-            return val.copy(deep=True)
-        return val
+        return _freeze_value(val)
 
     def __setattr__(self, name, value):
         raise AttributeError(
