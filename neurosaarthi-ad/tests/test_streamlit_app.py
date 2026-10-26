@@ -1,11 +1,11 @@
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
 from dashboards.streamlit_app import ImmutableRuntimeProxy
 
-import pandas as pd
 
 class DummyTarget:
     def __init__(self):
