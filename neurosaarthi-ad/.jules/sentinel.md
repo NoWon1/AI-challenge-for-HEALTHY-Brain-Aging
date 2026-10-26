@@ -12,3 +12,8 @@
 **Vulnerability:** The `scripts/export_models.py` script constructed model export paths using unvalidated dynamic inputs (`modality` and `model_name`), leaving it vulnerable to Path Traversal (CWE-22) if untrusted configurations were processed.
 **Learning:** Even internal helper scripts must sanitize dynamically generated file paths (using `Path(name).name`) and perform strict bounds-checking against the intended target directory to prevent adversarial configurations from writing artifacts outside of restricted scopes.
 **Prevention:** Sanitize dynamic filename components by stripping directory parts using `Path(name).name`, and enforce explicit path resolution validation by ensuring the resolved path is within the intended base directory using `path.resolve().is_relative_to(base_dir)`.
+
+## 2024-10-25 - Securing Streamlit Configuration
+**Vulnerability:** The application was lacking a `.streamlit/config.toml` file to harden the application. Specifically, XSRF protection was not explicitly enabled and client-side error details (which could leak stack traces and server-side information) were not disabled.
+**Learning:** In production, Streamlit apps can expose internal error tracebacks to the client if not explicitly configured to hide them. Also, XSRF protection is a critical defense mechanism that should be explicitly enabled.
+**Prevention:** Always include a `.streamlit/config.toml` in Streamlit deployments with `enableXsrfProtection = true` and `showErrorDetails = "none"`. Do not explicitly disable CORS.
