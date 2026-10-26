@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
+import html
 import sys
 from pathlib import Path
-import html
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import html
 import re
 import types
+
 import altair as alt
-import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -24,11 +23,7 @@ from demo.runtime import (
     build_demo_runtime,
     profile_with,
 )
-from types import MappingProxyType
-from typing import Any
-
 from demo.synthetic import generate_demo_cohort
-
 
 COLORS = {
     "teal": "#0F5C5B",
@@ -82,6 +77,29 @@ def _inject_styles() -> None:
     )
 
 
+def _secure_value(val):
+    """Recursively secure values to prevent nested mutability."""
+    if isinstance(val, dict):
+        return types.MappingProxyType({k: _secure_value(v) for k, v in val.items()})
+    if isinstance(val, list):
+        return tuple(_secure_value(v) for v in val)
+    if isinstance(val, tuple):
+        return tuple(_secure_value(v) for v in val)
+    if isinstance(val, set):
+        return frozenset(_secure_value(v) for v in val)
+    if isinstance(val, pd.DataFrame):
+        return val.copy(deep=True)
+    if hasattr(val, "flags") and hasattr(val, "view") and hasattr(val, "copy"):
+        # Handle numpy arrays: return a read-only view
+        try:
+            view = val.view()
+            view.flags.writeable = False
+            return view
+        except (AttributeError, ValueError):
+            pass
+    return val
+
+
 class ImmutableRuntimeProxy:
     """Read-only proxy to prevent cross-session state corruption in Streamlit cache."""
 
@@ -89,16 +107,7 @@ class ImmutableRuntimeProxy:
         object.__setattr__(self, "_obj", obj)
 
     def __getattr__(self, name):
-        val = getattr(self._obj, name)
-        if isinstance(val, dict):
-            return types.MappingProxyType(val)
-        if isinstance(val, list):
-            return tuple(val)
-        if isinstance(val, set):
-            return frozenset(val)
-        if isinstance(val, pd.DataFrame):
-            return val.copy(deep=True)
-        return val
+        return _secure_value(getattr(self._obj, name))
 
     def __setattr__(self, name, value):
         raise AttributeError(
