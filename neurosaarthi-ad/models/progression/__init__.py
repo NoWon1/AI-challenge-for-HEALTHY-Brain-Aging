@@ -1,2 +1,1 @@
 """Progression forecasting models."""
-

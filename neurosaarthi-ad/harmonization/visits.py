@@ -5,7 +5,11 @@ from __future__ import annotations
 import pandas as pd
 
 
-def add_baseline_offsets(visits: pd.DataFrame, participant_col: str = "participant_id", date_col: str = "visit_date") -> pd.DataFrame:
+def add_baseline_offsets(
+    visits: pd.DataFrame,
+    participant_col: str = "participant_id",
+    date_col: str = "visit_date",
+) -> pd.DataFrame:
     """Add days from first observed visit for each participant."""
 
     output = visits.copy()
@@ -15,16 +19,25 @@ def add_baseline_offsets(visits: pd.DataFrame, participant_col: str = "participa
     return output
 
 
-def require_monotonic_visits(visits: pd.DataFrame, participant_col: str = "participant_id", order_col: str = "visit_index") -> None:
+def require_monotonic_visits(
+    visits: pd.DataFrame,
+    participant_col: str = "participant_id",
+    order_col: str = "visit_index",
+) -> None:
     # ⚡ Bolt: Fast-path vectorised monotonicity check avoids slow loops for the happy path
     if visits.empty:
         return
 
-    if visits.groupby(participant_col, sort=False)[order_col].diff().fillna(0).ge(0).all():
+    if (
+        visits.groupby(participant_col, sort=False)[order_col]
+        .diff()
+        .fillna(0)
+        .ge(0)
+        .all()
+    ):
         return
 
     for participant_id, group in visits.groupby(participant_col, sort=False):
         values = group[order_col].tolist()
         if values != sorted(values):
             raise ValueError("Visits are not monotonic for one or more participants")
-

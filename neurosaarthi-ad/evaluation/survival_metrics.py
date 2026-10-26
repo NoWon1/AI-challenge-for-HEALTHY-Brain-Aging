@@ -9,20 +9,26 @@ try:
     from sksurv.metrics import (
         concordance_index_censored,
         cumulative_dynamic_auc,
+    )
+    from sksurv.metrics import (
         integrated_brier_score as sksurv_ibs,
     )
+
     HAS_SKSURV = True
 except ImportError:
     HAS_SKSURV = False
 
 try:
     from lifelines.utils import concordance_index as ll_cindex
+
     HAS_LIFELINES = True
 except ImportError:
     HAS_LIFELINES = False
 
 
-def _numpy_cindex(event_times: np.ndarray, events: np.ndarray, risk_scores: np.ndarray) -> float:
+def _numpy_cindex(
+    event_times: np.ndarray, events: np.ndarray, risk_scores: np.ndarray
+) -> float:
     """Pure numpy fallback for Harrell's C-index."""
     event_times = np.asarray(event_times)
     events = np.asarray(events, dtype=bool)
@@ -68,12 +74,14 @@ def concordance_index(
     risk_scores = np.asarray(risk_scores)
 
     if HAS_SKSURV:
-        cindex, _, _, _, _ = concordance_index_censored(events, event_times, risk_scores)
+        cindex, _, _, _, _ = concordance_index_censored(
+            events, event_times, risk_scores
+        )
         return float(cindex)
     if HAS_LIFELINES:
         # lifelines assumes higher score = longer survival by default, so we negate risk_scores
         return float(ll_cindex(event_times, -risk_scores, events))
-    
+
     return _numpy_cindex(event_times, events, risk_scores)
 
 
@@ -113,10 +121,11 @@ def time_dependent_auc(
         # using the same data for train/test in IPCW (biased but common for simple eval)
         auc, mean_auc = cumulative_dynamic_auc(surv_y, surv_y, risk_scores, eval_times)
         return auc, float(mean_auc)
-    
+
     # Fallback to simple binary AUC at each time point if sksurv is missing
     # Note: This is an approximation and ignores IPCW
     from sklearn.metrics import roc_auc_score
+
     aucs = []
     for t in eval_times:
         # Event happened before or at t
@@ -162,12 +171,14 @@ def integrated_brier_score(
     # Fallback approximation
     # ⚡ Bolt: Vectorized numpy broadcasting to replace O(M) explicit python loops and slow sklearn brier_score_loss calls
     # y_true shape: (n_samples, n_eval_times)
-    y_true = (events[:, None] & (event_times[:, None] <= eval_times[None, :])).astype(int)
+    y_true = (events[:, None] & (event_times[:, None] <= eval_times[None, :])).astype(
+        int
+    )
     valid = (event_times[:, None] > eval_times[None, :]) | events[:, None]
 
     event_probs = 1.0 - survival_probs
     squared_error = (y_true - event_probs) ** 2
-    
+
     valid_counts = valid.sum(axis=0)
 
     # Check if both classes are present in the valid set
@@ -193,10 +204,15 @@ def integrated_brier_score(
     except AttributeError:
         trapz_func = np.trapz
 
-    return float(trapz_func(valid_brier_scores, valid_eval_times) / (valid_eval_times[-1] - valid_eval_times[0]))
+    return float(
+        trapz_func(valid_brier_scores, valid_eval_times)
+        / (valid_eval_times[-1] - valid_eval_times[0])
+    )
 
 
-def calibration_slope(y_true: np.ndarray | pd.Series, y_pred: np.ndarray | pd.Series) -> tuple[float, float]:
+def calibration_slope(
+    y_true: np.ndarray | pd.Series, y_pred: np.ndarray | pd.Series
+) -> tuple[float, float]:
     """
     Calculate logistic calibration slope and intercept.
 
@@ -209,21 +225,23 @@ def calibration_slope(y_true: np.ndarray | pd.Series, y_pred: np.ndarray | pd.Se
     """
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
-    
+
     # Clip to avoid log(0)
     eps = 1e-15
     y_pred = np.clip(y_pred, eps, 1 - eps)
     logit_p = np.log(y_pred / (1 - y_pred))
-    
+
     try:
         from sklearn.linear_model import LogisticRegression
-        lr = LogisticRegression(penalty=None, solver='lbfgs')
+
+        lr = LogisticRegression(penalty=None, solver="lbfgs")
         lr.fit(logit_p.reshape(-1, 1), y_true)
         return float(lr.coef_[0][0]), float(lr.intercept_[0])
     except ImportError:
         # Fallback using statsmodels if available, otherwise numpy polyfit (approximate)
         try:
             import statsmodels.api as sm
+
             X = sm.add_constant(logit_p)
             model = sm.Logit(y_true, X)
             result = model.fit(disp=0)

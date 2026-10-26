@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -22,7 +22,9 @@ class BootstrapCI:
     seed: int = 42
     ci_level: float = 0.95
 
-    def compute(self, metric_fn: Callable[..., float], *data_args: np.ndarray) -> tuple[float, float, float]:
+    def compute(
+        self, metric_fn: Callable[..., float], *data_args: np.ndarray
+    ) -> tuple[float, float, float]:
         """Compute point estimate and bootstrap confidence intervals.
 
         Args:
@@ -52,7 +54,9 @@ class BootstrapCI:
 
         return point_estimate, lower, upper
 
-    def compute_metric_ci(self, y_true: pd.Series, y_score: pd.Series, metric_name: str = "auroc") -> dict[str, float]:
+    def compute_metric_ci(
+        self, y_true: pd.Series, y_score: pd.Series, metric_name: str = "auroc"
+    ) -> dict[str, float]:
         """Compute CI for a specific metric.
 
         Args:
@@ -63,13 +67,16 @@ class BootstrapCI:
         Returns:
             Dictionary containing point, lower, and upper values.
         """
+
         def metric_fn(yt: np.ndarray, ys: np.ndarray) -> float:
             if binary_metrics is None:
                 raise ImportError("binary_metrics could not be imported.")
             metrics = binary_metrics(pd.Series(yt), pd.Series(ys))
             return metrics[metric_name]
 
-        point, lower, upper = self.compute(metric_fn, y_true.to_numpy(), y_score.to_numpy())
+        point, lower, upper = self.compute(
+            metric_fn, y_true.to_numpy(), y_score.to_numpy()
+        )
         return {"point": point, "lower": lower, "upper": upper}
 
 
@@ -94,7 +101,9 @@ class ConformalPredictor:
         q_level = min(max(q_level, 0.0), 1.0)
         return float(np.quantile(residuals, q_level, method="higher"))
 
-    def predict_interval(self, predictions: np.ndarray | pd.Series, width: float) -> tuple[np.ndarray, np.ndarray]:
+    def predict_interval(
+        self, predictions: np.ndarray | pd.Series, width: float
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Compute prediction bands given base predictions and conformal width.
 
         Args:
@@ -108,7 +117,12 @@ class ConformalPredictor:
             predictions = predictions.to_numpy()
         return predictions - width, predictions + width
 
-    def coverage(self, y_true: np.ndarray | pd.Series, lower: np.ndarray | pd.Series, upper: np.ndarray | pd.Series) -> float:
+    def coverage(
+        self,
+        y_true: np.ndarray | pd.Series,
+        lower: np.ndarray | pd.Series,
+        upper: np.ndarray | pd.Series,
+    ) -> float:
         """Compute empirical coverage fraction.
 
         Args:
@@ -134,7 +148,12 @@ class ConformalPredictor:
 class ReliabilityDiagram:
     """Utility for computing reliability diagrams and calibration metrics."""
 
-    def compute(self, y_true: np.ndarray | pd.Series, y_pred: np.ndarray | pd.Series, n_bins: int = 10) -> pd.DataFrame:
+    def compute(
+        self,
+        y_true: np.ndarray | pd.Series,
+        y_pred: np.ndarray | pd.Series,
+        n_bins: int = 10,
+    ) -> pd.DataFrame:
         """Compute reliability diagram metrics.
 
         Args:
@@ -172,12 +191,14 @@ class ReliabilityDiagram:
                 pred_rate = np.nan
 
             midpoint = (bins[i] + bins[i + 1]) / 2
-            results.append({
-                "bin_midpoint": midpoint,
-                "observed_rate": obs_rate,
-                "predicted_rate": pred_rate,
-                "count": count,
-            })
+            results.append(
+                {
+                    "bin_midpoint": midpoint,
+                    "observed_rate": obs_rate,
+                    "predicted_rate": pred_rate,
+                    "count": count,
+                }
+            )
 
         df = pd.DataFrame(results)
         df["ece"] = ece
@@ -185,7 +206,10 @@ class ReliabilityDiagram:
         return df
 
 
-def ood_score(query_features: np.ndarray | pd.DataFrame, training_features: np.ndarray | pd.DataFrame) -> np.ndarray:
+def ood_score(
+    query_features: np.ndarray | pd.DataFrame,
+    training_features: np.ndarray | pd.DataFrame,
+) -> np.ndarray:
     """Compute out-of-distribution score using Mahalanobis distance.
 
     Args:

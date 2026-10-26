@@ -1,13 +1,20 @@
 from pathlib import Path
 
-from dashboards.streamlit_app import _sanitize_markdown, ImmutableRuntimeProxy
-from streamlit.testing.v1 import AppTest
+import pandas as pd
 import pytest
+from streamlit.testing.v1 import AppTest
+
+from dashboards.streamlit_app import ImmutableRuntimeProxy
+
 
 class DummyTarget:
     def __init__(self):
         self.value = 42
         self.config = {"key": "value"}
+        self.df = pd.DataFrame({"a": [1, 2]})
+        self.my_list = [1, 2, 3]
+        self.my_set = {1, 2, 3}
+
 
 def test_immutable_runtime_proxy():
     target = DummyTarget()
@@ -25,6 +32,14 @@ def test_immutable_runtime_proxy():
     # Test dictionary mapping proxy
     with pytest.raises(TypeError):
         proxy.config["key"] = "new_value"
+
+    assert isinstance(proxy.df, pd.DataFrame)
+    assert proxy.df is not target.df
+    assert isinstance(proxy.my_list, tuple)
+    assert proxy.my_list == (1, 2, 3)
+    assert isinstance(proxy.my_set, frozenset)
+    assert proxy.my_set == frozenset({1, 2, 3})
+
 
 def test_streamlit_judge_demo_smoke():
     app_path = Path(__file__).parents[1] / "dashboards" / "streamlit_app.py"

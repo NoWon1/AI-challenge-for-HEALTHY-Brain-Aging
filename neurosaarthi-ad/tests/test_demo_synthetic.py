@@ -15,7 +15,13 @@ def test_default_demo_cohort_has_840_longitudinal_participants():
     visit_counts = visits.groupby("participant_id").size()
     assert visit_counts.between(3, 6).all()
     # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop
-    assert visits.groupby("participant_id", sort=False)["baseline_days"].diff().fillna(0).ge(0).all()
+    assert (
+        visits.groupby("participant_id", sort=False)["baseline_days"]
+        .diff()
+        .fillna(0)
+        .ge(0)
+        .all()
+    )
 
     for name, frame in {
         "participants": bundle.tables.participants,

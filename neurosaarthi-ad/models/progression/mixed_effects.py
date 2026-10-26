@@ -23,14 +23,16 @@ except ImportError:  # pragma: no cover
 @dataclass
 class MixedEffectsTrajectory:
     """A mixed-effects trajectory model for disease progression."""
-    
+
     feature_columns: list[str]
     group_col: str = "participant_id"
     time_col: str = "horizon_years"
 
-    def fit(self, frame: pd.DataFrame, target_col: str = "future_score") -> "MixedEffectsTrajectory":
+    def fit(
+        self, frame: pd.DataFrame, target_col: str = "future_score"
+    ) -> MixedEffectsTrajectory:
         """Fit the mixed-effects model.
-        
+
         Uses statsmodels MixedLM if available, fitting random intercepts and slopes.
         Otherwise falls back to a per-participant Ridge regression approximation.
         """
@@ -39,43 +41,54 @@ class MixedEffectsTrajectory:
 
         if self._is_statsmodels:
             endog = frame[target_col].astype(float)
-            exog = sm.add_constant(frame[self.feature_columns].astype(float).fillna(0.0))
+            exog = sm.add_constant(
+                frame[self.feature_columns].astype(float).fillna(0.0)
+            )
             groups = frame[self.group_col]
             exog_re = sm.add_constant(frame[[self.time_col]].astype(float).fillna(0.0))
-            
+
             self.model_ = MixedLM(endog, exog, groups, exog_re=exog_re)
             self.result_ = self.model_.fit()
         else:
             self.models_ = {}
             if Ridge is None:
-                raise ImportError("Neither statsmodels nor sklearn is available for fallback.")
-            
+                raise ImportError(
+                    "Neither statsmodels nor sklearn is available for fallback."
+                )
+
             for name, group in frame.groupby(self.group_col):
                 X = group[self.feature_columns].astype(float).fillna(0.0)
                 y = group[target_col].astype(float)
                 # simple Ridge fallback
                 m = Ridge(alpha=1.0).fit(X, y)
                 self.models_[name] = m
-            
+
             # Global model for unknown participants
             X_all = frame[self.feature_columns].astype(float).fillna(0.0)
             y_all = frame[target_col].astype(float)
             self.global_model_ = Ridge(alpha=1.0).fit(X_all, y_all)
-            
+
         return self
 
     def predict(self, frame: pd.DataFrame) -> pd.Series:
         """Predict the future scores for the given data."""
         if self._is_statsmodels:
-            exog = sm.add_constant(frame[self.feature_columns].astype(float).fillna(0.0), has_constant='add')
-            exog_re = sm.add_constant(frame[[self.time_col]].astype(float).fillna(0.0), has_constant='add')
+            exog = sm.add_constant(
+                frame[self.feature_columns].astype(float).fillna(0.0),
+                has_constant="add",
+            )
+            exog_re = sm.add_constant(
+                frame[[self.time_col]].astype(float).fillna(0.0), has_constant="add"
+            )
 
             # Vectorized base predictions for all rows
             preds = np.array(self.result_.predict(exog), copy=True)
-            
+
             # ⚡ Bolt: Vectorized random effects broadcasting avoids slow O(N) groupby loop
             if self.result_.random_effects:
-                re_df = pd.DataFrame.from_dict(self.result_.random_effects, orient='index')
+                re_df = pd.DataFrame.from_dict(
+                    self.result_.random_effects, orient="index"
+                )
                 re_mapped = re_df.reindex(frame[self.group_col]).fillna(0.0)
 
                 common_cols = exog_re.columns.intersection(re_mapped.columns)
@@ -85,7 +98,9 @@ class MixedEffectsTrajectory:
                     re_pred = np.sum(exog_re_np * re_mapped_np, axis=1)
                     preds += re_pred
 
-            return pd.Series(preds, index=frame.index, name="predicted_" + self._target_col)
+            return pd.Series(
+                preds, index=frame.index, name="predicted_" + self._target_col
+            )
         else:
             X_all = frame[self.feature_columns].astype(float).fillna(0.0)
 
@@ -97,7 +112,9 @@ class MixedEffectsTrajectory:
                 coef_dict = {g: m.coef_ for g, m in self.models_.items()}
                 int_dict = {g: m.intercept_ for g, m in self.models_.items()}
 
-                coef_df = pd.DataFrame.from_dict(coef_dict, orient='index', columns=self.feature_columns)
+                coef_df = pd.DataFrame.from_dict(
+                    coef_dict, orient="index", columns=self.feature_columns
+                )
                 int_series = pd.Series(int_dict)
 
                 groups = frame[self.group_col]
@@ -114,9 +131,13 @@ class MixedEffectsTrajectory:
                     group_preds = np.sum(X_valid * C_valid, axis=1) + I_valid
                     preds[valid_idx] = group_preds
 
-            return pd.Series(preds, index=frame.index, name="predicted_" + self._target_col)
+            return pd.Series(
+                preds, index=frame.index, name="predicted_" + self._target_col
+            )
 
-    def calibrate_conformal(self, residuals: np.ndarray | pd.Series, alpha: float = 0.1) -> "MixedEffectsTrajectory":
+    def calibrate_conformal(
+        self, residuals: np.ndarray | pd.Series, alpha: float = 0.1
+    ) -> MixedEffectsTrajectory:
         """Compute the conformal quantile from held-out residuals."""
         res = np.asarray(residuals)
         n = len(res)
@@ -125,16 +146,20 @@ class MixedEffectsTrajectory:
         self.conformal_q_ = np.quantile(np.abs(res), q_level)
         return self
 
-    def predict_with_intervals(self, frame: pd.DataFrame, alpha: float = 0.1) -> tuple[pd.Series, pd.Series, pd.Series]:
+    def predict_with_intervals(
+        self, frame: pd.DataFrame, alpha: float = 0.1
+    ) -> tuple[pd.Series, pd.Series, pd.Series]:
         """Predict future scores and return (predictions, lower_bound, upper_bound)."""
         preds = self.predict(frame)
         if not hasattr(self, "conformal_q_"):
-            raise RuntimeError("calibrate_conformal must be called before predict_with_intervals")
-        
+            raise RuntimeError(
+                "calibrate_conformal must be called before predict_with_intervals"
+            )
+
         lower = preds - self.conformal_q_
         upper = preds + self.conformal_q_
         return preds, lower, upper
-        
+
     def person_effects(self, participant_id: Any) -> pd.Series | dict:
         """Return the estimated random effects for a person."""
         if self._is_statsmodels:

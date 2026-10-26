@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
+import html
 import sys
 from pathlib import Path
-import html
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import html
 import re
-import types
+from types import MappingProxyType
+from typing import Any
+
 import altair as alt
-import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -24,9 +24,6 @@ from demo.runtime import (
     build_demo_runtime,
     profile_with,
 )
-from types import MappingProxyType
-from typing import Any
-
 from demo.synthetic import generate_demo_cohort
 
 
@@ -44,6 +41,12 @@ class ImmutableRuntimeProxy:
         # Protect internal dictionary lookups from in-place modification
         if isinstance(attr, dict):
             return MappingProxyType(attr)
+        if isinstance(attr, pd.DataFrame):
+            return attr.copy(deep=True)
+        if isinstance(attr, list):
+            return tuple(attr)
+        if isinstance(attr, set):
+            return frozenset(attr)
         return attr
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -107,24 +110,6 @@ def _inject_styles() -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
-class ImmutableRuntimeProxy:
-    """Read-only proxy to prevent cross-session state corruption in Streamlit cache."""
-    def __init__(self, obj):
-        object.__setattr__(self, "_obj", obj)
-
-    def __getattr__(self, name):
-        val = getattr(self._obj, name)
-        if isinstance(val, dict):
-            return types.MappingProxyType(val)
-        return val
-
-    def __setattr__(self, name, value):
-        raise AttributeError(f"Modification of attribute {name} is forbidden: cached runtime is read-only across sessions.")
-
-    def __delattr__(self, name):
-        raise AttributeError(f"Deletion of attribute {name} is forbidden: cached runtime is read-only across sessions.")
 
 
 @st.cache_resource(show_spinner="Preparing the synthetic seven-cohort workbench…")
@@ -334,7 +319,7 @@ def _profile_controls() -> ParticipantProfile:
 
 
 def _risk_card(row: dict) -> str:
-    horizon = html.escape(str(int(row['horizon'])))
+    horizon = html.escape(str(int(row["horizon"])))
     risk = html.escape(f"{row['risk']:.0%}")
     lower = html.escape(f"{row['lower']:.0%}")
     upper = html.escape(f"{row['upper']:.0%}")

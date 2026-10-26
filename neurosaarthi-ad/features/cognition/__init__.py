@@ -1,2 +1,1 @@
 """Cognition feature builders."""
-
