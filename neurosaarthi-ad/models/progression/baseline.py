@@ -31,7 +31,9 @@ class CognitiveTrajectoryRegressor:
                 ]
             )
 
-    def fit(self, frame: pd.DataFrame, target_col: str = "future_score") -> CognitiveTrajectoryRegressor:
+    def fit(
+        self, frame: pd.DataFrame, target_col: str = "future_score"
+    ) -> CognitiveTrajectoryRegressor:
         if self.pipeline is not None:
             self.pipeline.fit(frame[self.feature_columns], frame[target_col])
             return self
@@ -52,10 +54,14 @@ class CognitiveTrajectoryRegressor:
     def predict(self, frame: pd.DataFrame) -> pd.Series:
         if self.pipeline is not None:
             predictions = self.pipeline.predict(frame[self.feature_columns])
-            return pd.Series(predictions, index=frame.index, name="predicted_future_score")
+            return pd.Series(
+                predictions, index=frame.index, name="predicted_future_score"
+            )
 
         if not hasattr(self, "coef_"):
-            raise RuntimeError("CognitiveTrajectoryRegressor must be fitted before predict")
+            raise RuntimeError(
+                "CognitiveTrajectoryRegressor must be fitted before predict"
+            )
         x = frame[self.feature_columns].astype(float).fillna(self.medians_)
         z = (x - self.means_) / self.stds_
         design = np.column_stack([np.ones(len(z)), z.to_numpy()])

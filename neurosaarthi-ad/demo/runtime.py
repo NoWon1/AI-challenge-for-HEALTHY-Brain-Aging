@@ -35,12 +35,17 @@ MODALITY_FEATURES: dict[str, list[str]] = {
         "executive_score",
     ],
     "MRI": [
-        "hippocampal_volume_mm3", "wmh_burden_ml",
-        "entorhinal_thickness_mm", "ventricular_volume_mm3", "cortical_thickness_mean_mm",
+        "hippocampal_volume_mm3",
+        "wmh_burden_ml",
+        "entorhinal_thickness_mm",
+        "ventricular_volume_mm3",
+        "cortical_thickness_mean_mm",
     ],
     "Blood": [
-        "hba1c_percent", "hs_crp_mg_l",
-        "total_cholesterol_mg_dl", "fasting_glucose_mg_dl",
+        "hba1c_percent",
+        "hs_crp_mg_l",
+        "total_cholesterol_mg_dl",
+        "fasting_glucose_mg_dl",
     ],
     "OCT/OCTA": ["rnfl_um", "vessel_density_percent", "gfaz_area_mm2"],
     "Genomics": ["apoe_e4_count", "ancestry_pc1"],
@@ -52,7 +57,9 @@ MODALITY_WEIGHTS = {
     "OCT/OCTA": 0.11,
     "Genomics": 0.12,
 }
-ALL_MODEL_FEATURES = [feature for features in MODALITY_FEATURES.values() for feature in features]
+ALL_MODEL_FEATURES = [
+    feature for features in MODALITY_FEATURES.values() for feature in features
+]
 
 
 @dataclass(frozen=True)
@@ -112,7 +119,13 @@ class ParticipantProfile:
                 }
             ]
         )
-        return df.astype({c: float for c in df.select_dtypes('object').columns if c not in ['participant_id', 'sex', 'urban_rural', 'label']})
+        return df.astype(
+            {
+                c: float
+                for c in df.select_dtypes("object").columns
+                if c not in ["participant_id", "sex", "urban_rural", "label"]
+            }
+        )
 
 
 PRESET_PROFILES: dict[str, ParticipantProfile] = {
@@ -210,7 +223,9 @@ class ParticipantForecast:
 class _LegacyDiscreteTimeRiskEnsemble:
     """Bootstrap discrete-time hazard models with cumulative risk output."""
 
-    def __init__(self, feature_columns: list[str], n_bootstrap: int = 12, seed: int = 42):
+    def __init__(
+        self, feature_columns: list[str], n_bootstrap: int = 12, seed: int = 42
+    ):
         self.feature_columns = list(feature_columns)
         self.n_bootstrap = n_bootstrap
         self.seed = seed
@@ -263,13 +278,18 @@ class _LegacyDiscreteTimeRiskEnsemble:
                     ),
                 ]
             )
-            model.fit(intervals[self.feature_columns + ["interval_year"]], intervals["interval_event"])
+            model.fit(
+                intervals[self.feature_columns + ["interval_year"]],
+                intervals["interval_event"],
+            )
             self.models.append(model)
         return self
 
     def predict_distribution(self, frame: pd.DataFrame) -> np.ndarray:
         if not self.models:
-            raise RuntimeError("DiscreteTimeRiskEnsemble must be fitted before prediction")
+            raise RuntimeError(
+                "DiscreteTimeRiskEnsemble must be fitted before prediction"
+            )
         output = np.zeros((len(self.models), len(frame), len(HORIZONS)), dtype=float)
         base_frame = frame[self.feature_columns].copy()
         for model_index, model in enumerate(self.models):
@@ -289,7 +309,7 @@ class _LegacyDiscreteTimeRiskEnsemble:
 
 class GBMDiscreteTimeRiskEnsemble:
     """Bootstrap ensemble of GBM discrete-time hazard models."""
-    
+
     def __init__(self, feature_columns, n_bootstrap=12, seed=42):
         self.feature_columns = list(feature_columns)
         self.n_bootstrap = n_bootstrap
@@ -329,17 +349,18 @@ class GBMDiscreteTimeRiskEnsemble:
                     break
             if intervals is None or intervals["interval_event"].nunique() < 2:
                 intervals = self._interval_frame(training)
-            
+
             try:
                 from models.classification.lightgbm_risk import GBMRiskClassifier
+
                 model = GBMRiskClassifier(
-                    feature_columns=self.feature_columns + ['interval_year'],
+                    feature_columns=self.feature_columns + ["interval_year"],
                     n_estimators=150,
                     learning_rate=0.08,
                     max_depth=4,
                     seed=self.seed + i * 37,
                 )
-                model.fit(intervals, target_col='interval_event')
+                model.fit(intervals, target_col="interval_event")
             except (ImportError, ValueError):
                 model = Pipeline(
                     steps=[
@@ -355,13 +376,18 @@ class GBMDiscreteTimeRiskEnsemble:
                         ),
                     ]
                 )
-                model.fit(intervals[self.feature_columns + ["interval_year"]], intervals["interval_event"])
+                model.fit(
+                    intervals[self.feature_columns + ["interval_year"]],
+                    intervals["interval_event"],
+                )
             self.models.append(model)
         return self
 
     def predict_distribution(self, frame):
         if not self.models:
-            raise RuntimeError("GBMDiscreteTimeRiskEnsemble must be fitted before prediction")
+            raise RuntimeError(
+                "GBMDiscreteTimeRiskEnsemble must be fitted before prediction"
+            )
         output = np.zeros((len(self.models), len(frame), len(HORIZONS)), dtype=float)
         base_frame = frame[self.feature_columns].copy()
         for model_index, model in enumerate(self.models):
@@ -409,7 +435,9 @@ def _assign_splits(baseline: pd.DataFrame, seed: int) -> pd.DataFrame:
     public_mask = df["cohort"].isin(PUBLIC_COHORTS)
     public_val_count = np.maximum(1, np.round(0.20 * df["_count"]))
 
-    df.loc[public_mask & (df["_rank"] <= public_val_count), "role"] = "public_validation"
+    df.loc[public_mask & (df["_rank"] <= public_val_count), "role"] = (
+        "public_validation"
+    )
     df.loc[public_mask & (df["_rank"] > public_val_count), "role"] = "global_train"
 
     # Apply conditions for TLSA
@@ -432,19 +460,35 @@ def _safe_metrics(y_true: pd.Series, y_score: pd.Series) -> dict[str, float]:
 class DemoRuntime:
     """Cached synthetic training, inference, validation, and audit state."""
 
-    def __init__(self, bundle: DemoCohortBundle, n_bootstrap: int = 12, seed: int | None = None):
+    def __init__(
+        self, bundle: DemoCohortBundle, n_bootstrap: int = 12, seed: int | None = None
+    ):
         self.bundle = bundle
         self.seed = bundle.seed if seed is None else seed
         self.n_bootstrap = n_bootstrap
         self.split_assignments = _assign_splits(bundle.baseline, self.seed)
-        self.baseline = bundle.baseline.merge(self.split_assignments[["participant_id", "role"]], on="participant_id", how="left")
-        self.baseline["rural_indicator"] = (self.baseline["urban_rural"] == "rural").astype(int)
-        self.train = self.baseline[self.baseline["role"].isin(["global_train", "tlsa_adaptation"])].reset_index(drop=True)
-        self.validation = self.baseline[self.baseline["role"].isin(["public_validation", "india_validation", "external_validation"])].reset_index(drop=True)
+        self.baseline = bundle.baseline.merge(
+            self.split_assignments[["participant_id", "role"]],
+            on="participant_id",
+            how="left",
+        )
+        self.baseline["rural_indicator"] = (
+            self.baseline["urban_rural"] == "rural"
+        ).astype(int)
+        self.train = self.baseline[
+            self.baseline["role"].isin(["global_train", "tlsa_adaptation"])
+        ].reset_index(drop=True)
+        self.validation = self.baseline[
+            self.baseline["role"].isin(
+                ["public_validation", "india_validation", "external_validation"]
+            )
+        ].reset_index(drop=True)
         self._assert_split_safety()
 
         self.risk_models: dict[str, GBMDiscreteTimeRiskEnsemble] = {}
-        for modality_index, (modality, features) in enumerate(MODALITY_FEATURES.items()):
+        for modality_index, (modality, features) in enumerate(
+            MODALITY_FEATURES.items()
+        ):
             self.risk_models[modality] = GBMDiscreteTimeRiskEnsemble(
                 feature_columns=features,
                 n_bootstrap=n_bootstrap,
@@ -453,6 +497,7 @@ class DemoRuntime:
 
         try:
             from models.survival.rsf import RandomSurvivalForestModel
+
             self.survival_model = RandomSurvivalForestModel(
                 feature_columns=ALL_MODEL_FEATURES
             ).fit(self.train)
@@ -462,7 +507,10 @@ class DemoRuntime:
         self.trajectory_model = self._fit_trajectory_model()
         self.twin_retriever = TwinLiteRetriever(ALL_MODEL_FEATURES).fit(self.train)
         self.training_ranges = {
-            feature: (float(self.train[feature].quantile(0.01)), float(self.train[feature].quantile(0.99)))
+            feature: (
+                float(self.train[feature].quantile(0.01)),
+                float(self.train[feature].quantile(0.99)),
+            )
             for feature in ALL_MODEL_FEATURES
             if self.train[feature].notna().any()
         }
@@ -478,13 +526,15 @@ class DemoRuntime:
 
     def _build_model_comparison(self) -> pd.DataFrame:
         baseline_models = {}
-        for modality_index, (modality, features) in enumerate(MODALITY_FEATURES.items()):
+        for modality_index, (modality, features) in enumerate(
+            MODALITY_FEATURES.items()
+        ):
             baseline_models[modality] = _LegacyDiscreteTimeRiskEnsemble(
                 feature_columns=features,
                 n_bootstrap=self.n_bootstrap,
                 seed=self.seed + modality_index * 37,
             ).fit(self.train)
-        
+
         def _risk_distribution_baseline(frame: pd.DataFrame) -> np.ndarray:
             modality_distributions = {
                 modality: model.predict_distribution(frame)
@@ -492,7 +542,9 @@ class DemoRuntime:
             }
             # ⚡ Bolt: Vectorized multi-dimensional fusion replaces slow O(N) Pandas loops
             fused = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
-            total_weights = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
+            total_weights = np.zeros(
+                (self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float
+            )
 
             for modality, distribution in modality_distributions.items():
                 weight = MODALITY_WEIGHTS[modality]
@@ -509,7 +561,7 @@ class DemoRuntime:
                 fused += values * weight
                 total_weights += valid * weight
 
-            with np.errstate(divide='ignore', invalid='ignore'):
+            with np.errstate(divide="ignore", invalid="ignore"):
                 fused /= total_weights
 
             fused[total_weights == 0] = np.nan
@@ -518,17 +570,21 @@ class DemoRuntime:
         baseline_dist = _risk_distribution_baseline(self.validation)
         baseline_median = np.nanmedian(baseline_dist, axis=0)
         baseline_risk_3y = baseline_median[:, 1]
-        baseline_metrics = _safe_metrics(self.validation["event_by_3y"], baseline_risk_3y)
-        
+        baseline_metrics = _safe_metrics(
+            self.validation["event_by_3y"], baseline_risk_3y
+        )
+
         gbm_dist, _ = self._risk_distribution(self.validation)
         gbm_median = np.nanmedian(gbm_dist, axis=0)
         gbm_risk_3y = gbm_median[:, 1]
         gbm_metrics = _safe_metrics(self.validation["event_by_3y"], gbm_risk_3y)
-        
-        return pd.DataFrame([
-            {"model": "Baseline (Logistic)", **baseline_metrics},
-            {"model": "Upgraded (GBM)", **gbm_metrics},
-        ])
+
+        return pd.DataFrame(
+            [
+                {"model": "Baseline (Logistic)", **baseline_metrics},
+                {"model": "Upgraded (GBM)", **gbm_metrics},
+            ]
+        )
 
     def _assert_split_safety(self) -> None:
         train_ids = set(self.train["participant_id"])
@@ -540,7 +596,9 @@ class DemoRuntime:
         if (self.train["cohort"] == "SANSCOG").any():
             raise ValueError("SANSCOG must remain fully held out")
         feature_timing = self.bundle.tables.modality_features.merge(
-            self.bundle.tables.visits[["visit_id", "baseline_days"]], on="visit_id", how="left"
+            self.bundle.tables.visits[["visit_id", "baseline_days"]],
+            on="visit_id",
+            how="left",
         )
         feature_timing["anchor_days"] = feature_timing["baseline_days"]
         feature_timing["feature_days"] = feature_timing["baseline_days"]
@@ -549,8 +607,13 @@ class DemoRuntime:
     def _fit_trajectory_model(self) -> CognitiveTrajectoryRegressor:
         train_ids = set(self.train["participant_id"])
         pairs = self.bundle.trajectories[
-            self.bundle.trajectories["participant_id"].isin(train_ids) & (self.bundle.trajectories["year"] > 0)
-        ].merge(self.train[["participant_id"] + ALL_MODEL_FEATURES], on="participant_id", how="left")
+            self.bundle.trajectories["participant_id"].isin(train_ids)
+            & (self.bundle.trajectories["year"] > 0)
+        ].merge(
+            self.train[["participant_id"] + ALL_MODEL_FEATURES],
+            on="participant_id",
+            how="left",
+        )
         pairs = pairs.rename(
             columns={
                 "year": "horizon_years",
@@ -559,12 +622,23 @@ class DemoRuntime:
             }
         )
         feature_columns = ALL_MODEL_FEATURES + ["horizon_years"]
-        model = CognitiveTrajectoryRegressor(feature_columns).fit(pairs, target_col="future_score")
+        model = CognitiveTrajectoryRegressor(feature_columns).fit(
+            pairs, target_col="future_score"
+        )
 
-        validation_ids = set(self.validation[self.validation["role"] != "external_validation"]["participant_id"])
+        validation_ids = set(
+            self.validation[self.validation["role"] != "external_validation"][
+                "participant_id"
+            ]
+        )
         residual_pairs = self.bundle.trajectories[
-            self.bundle.trajectories["participant_id"].isin(validation_ids) & (self.bundle.trajectories["year"] > 0)
-        ].merge(self.validation[["participant_id"] + ALL_MODEL_FEATURES], on="participant_id", how="left")
+            self.bundle.trajectories["participant_id"].isin(validation_ids)
+            & (self.bundle.trajectories["year"] > 0)
+        ].merge(
+            self.validation[["participant_id"] + ALL_MODEL_FEATURES],
+            on="participant_id",
+            how="left",
+        )
         residual_pairs = residual_pairs.rename(
             columns={
                 "year": "horizon_years",
@@ -595,7 +669,9 @@ class DemoRuntime:
 
         # ⚡ Bolt: Vectorized multi-dimensional fusion replaces slow O(N) Pandas loops
         fused = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
-        total_weights = np.zeros((self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float)
+        total_weights = np.zeros(
+            (self.n_bootstrap, len(frame), len(HORIZONS)), dtype=float
+        )
 
         for modality, distribution in modality_distributions.items():
             weight = MODALITY_WEIGHTS[modality]
@@ -616,18 +692,23 @@ class DemoRuntime:
             fused += values * weight
             total_weights += valid * weight
 
-        with np.errstate(divide='ignore', invalid='ignore'):
+        with np.errstate(divide="ignore", invalid="ignore"):
             fused /= total_weights
 
         fused[total_weights == 0] = np.nan
 
         return fused, modality_distributions
 
-    def predict_batch(self, frame: pd.DataFrame, disabled_modalities: Iterable[str] = ()) -> pd.DataFrame:
+    def predict_batch(
+        self, frame: pd.DataFrame, disabled_modalities: Iterable[str] = ()
+    ) -> pd.DataFrame:
         distribution, _ = self._risk_distribution(frame, disabled_modalities)
         median = np.nanmedian(distribution, axis=0)
         return pd.DataFrame(
-            {f"risk_{horizon}y": median[:, position] for position, horizon in enumerate(HORIZONS)},
+            {
+                f"risk_{horizon}y": median[:, position]
+                for position, horizon in enumerate(HORIZONS)
+            },
             index=frame.index,
         )
 
@@ -641,7 +722,13 @@ class DemoRuntime:
 
     def _build_validation_predictions(self) -> pd.DataFrame:
         predictions = self.predict_batch(self.validation)
-        return pd.concat([self.validation.reset_index(drop=True), predictions.reset_index(drop=True)], axis=1)
+        return pd.concat(
+            [
+                self.validation.reset_index(drop=True),
+                predictions.reset_index(drop=True),
+            ],
+            axis=1,
+        )
 
     def _build_validation_summary(self) -> pd.DataFrame:
         labels = {
@@ -667,15 +754,23 @@ class DemoRuntime:
         return pd.DataFrame(rows)
 
     def _build_calibration(self) -> pd.DataFrame:
-        group = self.validation_predictions[self.validation_predictions["role"] == "external_validation"]
+        group = self.validation_predictions[
+            self.validation_predictions["role"] == "external_validation"
+        ]
         return calibration_bins(group["event_by_3y"], group["risk_3y"], n_bins=6)
 
     def _build_subgroup_metrics(self) -> pd.DataFrame:
         india = self.validation_predictions[
-            self.validation_predictions["role"].isin(["india_validation", "external_validation"])
+            self.validation_predictions["role"].isin(
+                ["india_validation", "external_validation"]
+            )
         ].copy()
-        india["age_band"] = pd.cut(india["age"], bins=[0, 64, 72, 120], labels=["≤64", "65–72", "73+"])
-        india["education_band"] = np.where(india["education_years"] <= 10, "≤10 years", ">10 years")
+        india["age_band"] = pd.cut(
+            india["age"], bins=[0, 64, 72, 120], labels=["≤64", "65–72", "73+"]
+        )
+        india["education_band"] = np.where(
+            india["education_years"] <= 10, "≤10 years", ">10 years"
+        )
         dimensions = {
             "Sex": "sex",
             "Age": "age_band",
@@ -716,7 +811,9 @@ class DemoRuntime:
             metrics = _safe_metrics(self.validation["event_by_3y"], scores)
             rows.append({"scenario": scenario, **metrics})
         result = pd.DataFrame(rows)
-        full_auprc = float(result.loc[result["scenario"] == "Full multimodal", "auprc"].iloc[0])
+        full_auprc = float(
+            result.loc[result["scenario"] == "Full multimodal", "auprc"].iloc[0]
+        )
         result["auprc_delta"] = result["auprc"] - full_auprc
         return result
 
@@ -739,38 +836,82 @@ class DemoRuntime:
     def _build_quality_checks(self) -> pd.DataFrame:
         canonical_units = {
             row.canonical_feature: row.canonical_unit
-            for row in self.bundle.harmonization_manifest.drop_duplicates("canonical_feature").itertuples()
+            for row in self.bundle.harmonization_manifest.drop_duplicates(
+                "canonical_feature"
+            ).itertuples()
         }
-        feature_units = self.bundle.tables.modality_features[["feature_name", "unit"]].drop_duplicates()
-        units_valid = all(canonical_units[row.feature_name] == row.unit for row in feature_units.itertuples())
-        visits = self.bundle.tables.visits.sort_values(["participant_id", "visit_index"])
+        feature_units = self.bundle.tables.modality_features[
+            ["feature_name", "unit"]
+        ].drop_duplicates()
+        units_valid = all(
+            canonical_units[row.feature_name] == row.unit
+            for row in feature_units.itertuples()
+        )
+        visits = self.bundle.tables.visits.sort_values(
+            ["participant_id", "visit_index"]
+        )
         # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop and slow .groupby() overhead
         pids = visits["participant_id"].to_numpy()
         days = visits["baseline_days"].to_numpy()
         same_pid = pids[1:] == pids[:-1]
         diffs = days[1:] - days[:-1]
-        visits_monotonic = bool(np.all(diffs[same_pid] >= 0)) if len(visits) > 1 else True
+        visits_monotonic = (
+            bool(np.all(diffs[same_pid] >= 0)) if len(visits) > 1 else True
+        )
         checks = [
-            ("Participant split isolation", True, "No person appears in training and validation."),
-            ("Future-visit leakage guard", True, "Features are anchored at or before each prediction visit."),
-            ("Train-only preprocessing", True, "Imputation and scaling are fitted on development + TLSA adaptation only."),
-            ("Canonical unit validation", units_valid, "Cohort-native values round-trip to common units."),
-            ("Visit chronology", visits_monotonic, "All synthetic visits are longitudinally ordered."),
-            ("SANSCOG holdout", not (self.train["cohort"] == "SANSCOG").any(), "Rural India remains external validation only."),
+            (
+                "Participant split isolation",
+                True,
+                "No person appears in training and validation.",
+            ),
+            (
+                "Future-visit leakage guard",
+                True,
+                "Features are anchored at or before each prediction visit.",
+            ),
+            (
+                "Train-only preprocessing",
+                True,
+                "Imputation and scaling are fitted on development + TLSA adaptation only.",
+            ),
+            (
+                "Canonical unit validation",
+                units_valid,
+                "Cohort-native values round-trip to common units.",
+            ),
+            (
+                "Visit chronology",
+                visits_monotonic,
+                "All synthetic visits are longitudinally ordered.",
+            ),
+            (
+                "SANSCOG holdout",
+                not (self.train["cohort"] == "SANSCOG").any(),
+                "Rural India remains external validation only.",
+            ),
         ]
         return pd.DataFrame(
-            {"check": check, "status": "Passed" if passed else "Failed", "evidence": evidence}
+            {
+                "check": check,
+                "status": "Passed" if passed else "Failed",
+                "evidence": evidence,
+            }
             for check, passed, evidence in checks
         )
 
     def _trajectory_for_profile(
         self, profile_frame: pd.DataFrame, twin_trajectories: pd.DataFrame
     ) -> pd.DataFrame:
-        rows = [{**profile_frame.iloc[0].to_dict(), "horizon_years": float(year)} for year in (1, 2, 3, 5)]
+        rows = [
+            {**profile_frame.iloc[0].to_dict(), "horizon_years": float(year)}
+            for year in (1, 2, 3, 5)
+        ]
         future = pd.DataFrame(rows)
         centers = self.trajectory_model.predict(future).to_numpy()
         years = np.array([0.0, 1.0, 2.0, 3.0, 5.0])
-        centers = np.concatenate([[float(profile_frame.iloc[0]["cognitive_score"])], centers])
+        centers = np.concatenate(
+            [[float(profile_frame.iloc[0]["cognitive_score"])], centers]
+        )
         widths = [0.25]
 
         # ⚡ Bolt: Vectorize multi-point interpolation across twin groups avoiding slow O(N*M) Pandas groupby/sort loops
@@ -788,11 +929,20 @@ class DemoRuntime:
             scores_split = np.split(scores_arr, boundaries)
 
             for year in years[1:]:
-                twin_values = np.array([
-                    np.interp(year, y, s) for y, s in zip(years_split, scores_split)
-                ])
-                twin_dispersion = float(np.std(twin_values)) if len(twin_values) > 1 else 0.0
-                widths.append(float(np.sqrt(self.trajectory_residual_band**2 + (0.35 * twin_dispersion) ** 2)))
+                twin_values = np.array(
+                    [np.interp(year, y, s) for y, s in zip(years_split, scores_split)]
+                )
+                twin_dispersion = (
+                    float(np.std(twin_values)) if len(twin_values) > 1 else 0.0
+                )
+                widths.append(
+                    float(
+                        np.sqrt(
+                            self.trajectory_residual_band**2
+                            + (0.35 * twin_dispersion) ** 2
+                        )
+                    )
+                )
 
         centers = np.clip(centers, 0.0, 30.0)
         widths_array = np.asarray(widths)
@@ -809,17 +959,24 @@ class DemoRuntime:
         # Escape CommonMark structural tokens to prevent Markdown injection
         return re.sub(r"([\\`*_{}\[\]()#+\-.!~|<>])", r"\\\1", str(val))
 
-    def _warnings(self, profile: ParticipantProfile, frame: pd.DataFrame) -> tuple[str, ...]:
+    def _warnings(
+        self, profile: ParticipantProfile, frame: pd.DataFrame
+    ) -> tuple[str, ...]:
         warnings: list[str] = []
         missing_modalities = [
             modality
             for modality in MODALITY_FEATURES
-            if modality != "Cognition + clinical" and not bool(self._available_mask(frame, modality).iloc[0])
+            if modality != "Cognition + clinical"
+            and not bool(self._available_mask(frame, modality).iloc[0])
         ]
         if missing_modalities:
-            clean_modalities = [self._sanitize_markdown_text(m) for m in missing_modalities]
+            clean_modalities = [
+                self._sanitize_markdown_text(m) for m in missing_modalities
+            ]
             warnings.append(
-                "Missing modalities: " + ", ".join(clean_modalities) + ". Fusion weights were renormalised over available evidence."
+                "Missing modalities: "
+                + ", ".join(clean_modalities)
+                + ". Fusion weights were renormalised over available evidence."
             )
         outside = []
         for feature, (low, high) in self.training_ranges.items():
@@ -828,12 +985,20 @@ class DemoRuntime:
                 clean_feature = self._sanitize_markdown_text(feature.replace("_", " "))
                 outside.append(clean_feature)
         if outside:
-            warnings.append("Outside the synthetic training range: " + ", ".join(outside[:4]) + ". Treat uncertainty as elevated.")
+            warnings.append(
+                "Outside the synthetic training range: "
+                + ", ".join(outside[:4])
+                + ". Treat uncertainty as elevated."
+            )
         available_nonclinical = 4 - len(missing_modalities)
         if available_nonclinical < 2:
-            warnings.append("Limited multimodal coverage: the estimate is driven mainly by cognition and clinical context.")
+            warnings.append(
+                "Limited multimodal coverage: the estimate is driven mainly by cognition and clinical context."
+            )
         if profile.urban_rural == "rural":
-            warnings.append("Rural context is compared against the fully held-out synthetic SANSCOG-style validation cohort.")
+            warnings.append(
+                "Rural context is compared against the fully held-out synthetic SANSCOG-style validation cohort."
+            )
         return tuple(warnings)
 
     def predict(self, profile: ParticipantProfile) -> ParticipantForecast:
@@ -852,12 +1017,16 @@ class DemoRuntime:
         )
 
         query_frame = frame.copy()
-        twins = self.twin_retriever.query(query_frame.iloc[0], k=5, exclude_participant_id=profile.participant_id)
+        twins = self.twin_retriever.query(
+            query_frame.iloc[0], k=5, exclude_participant_id=profile.participant_id
+        )
         twins["similarity"] = 100.0 * np.exp(-twins["distance"] / 4.5)
         twin_ids = set(twins["participant_id"])
         twin_trajectories = self.bundle.trajectories[
             self.bundle.trajectories["participant_id"].isin(twin_ids)
-        ].merge(twins[["participant_id", "similarity"]], on="participant_id", how="left")
+        ].merge(
+            twins[["participant_id", "similarity"]], on="participant_id", how="left"
+        )
         trajectory = self._trajectory_for_profile(frame, twin_trajectories)
 
         driver_rows = []
@@ -867,7 +1036,9 @@ class DemoRuntime:
             if available:
                 available_modalities.append(modality)
                 modality_risk = float(np.median(values[:, 0, 1]))
-                effect = MODALITY_WEIGHTS[modality] * (modality_risk - self.modality_reference[modality])
+                effect = MODALITY_WEIGHTS[modality] * (
+                    modality_risk - self.modality_reference[modality]
+                )
             else:
                 modality_risk = np.nan
                 effect = 0.0
@@ -876,18 +1047,26 @@ class DemoRuntime:
                     "modality": modality,
                     "relative_effect": effect,
                     "modality_risk": modality_risk,
-                    "direction": "Raises estimate" if effect >= 0 else "Lowers estimate",
+                    "direction": "Raises estimate"
+                    if effect >= 0
+                    else "Lowers estimate",
                     "available": available,
                 }
             )
-        drivers = pd.DataFrame(driver_rows).sort_values("relative_effect", key=lambda values: values.abs(), ascending=False)
+        drivers = pd.DataFrame(driver_rows).sort_values(
+            "relative_effect", key=lambda values: values.abs(), ascending=False
+        )
 
         survival_curve = None
         if self.survival_model is not None:
             survival_curve = self.survival_model.predict_survival_function(frame)
 
-        twin_summary = twins[["participant_id", "cohort", "urban_rural", "similarity", "cognitive_score"]].copy()
-        twin_summary = twin_summary.rename(columns={"cognitive_score": "baseline_cognition"})
+        twin_summary = twins[
+            ["participant_id", "cohort", "urban_rural", "similarity", "cognitive_score"]
+        ].copy()
+        twin_summary = twin_summary.rename(
+            columns={"cognitive_score": "baseline_cognition"}
+        )
         return ParticipantForecast(
             profile=profile,
             risks=risks,
@@ -908,7 +1087,9 @@ class DemoRuntime:
         for modality, values in modality_distributions.items():
             if bool(self._available_mask(frame, modality).iloc[0]):
                 modality_risk = float(np.median(values[:, 0, 1]))
-                effect = MODALITY_WEIGHTS[modality] * (modality_risk - self.modality_reference[modality])
+                effect = MODALITY_WEIGHTS[modality] * (
+                    modality_risk - self.modality_reference[modality]
+                )
                 rows.append({"modality": modality, "shap_value": effect})
         return pd.DataFrame(rows)
 
