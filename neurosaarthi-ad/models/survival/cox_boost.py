@@ -23,6 +23,8 @@ except ImportError:
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 
+from evaluation.survival_metrics import _numpy_cindex
+
 
 def _to_structured(time: np.ndarray, event: np.ndarray) -> np.ndarray:
     """Convert parallel arrays to scikit-survival structured array."""
@@ -197,24 +199,7 @@ class CoxBoostModel:
             c, *_ = concordance_index_censored(events.astype(bool), times, risk)
             return float(c)
         # Pure-numpy fallback
-        # ⚡ Bolt: Vectorized numpy broadcasting replaces slow O(N^2) explicit python loop
-        events_bool = events.astype(bool)
-        if not np.any(events_bool):
-            return 0.5
-
-        t_i = times[events_bool]
-        r_i = risk[events_bool]
-
-        valid_pairs = t_i[:, None] < times[None, :]
-        permissible = np.sum(valid_pairs)
-
-        if permissible == 0:
-            return 0.0
-
-        concordant = np.sum((r_i[:, None] > risk[None, :]) & valid_pairs)
-        ties = np.sum((r_i[:, None] == risk[None, :]) & valid_pairs)
-
-        return float((concordant + 0.5 * ties) / permissible)
+        return _numpy_cindex(times, events, risk)
 
     @property
     def backend(self) -> str:

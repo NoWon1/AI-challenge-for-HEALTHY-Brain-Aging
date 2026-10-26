@@ -24,8 +24,8 @@ except ImportError:
     HAS_LIFELINES = False
 
 
-def _numpy_cindex(event_times: np.ndarray, events: np.ndarray, risk_scores: np.ndarray) -> float:
-    """Pure numpy fallback for Harrell's C-index."""
+def _numpy_cindex(event_times: np.ndarray, events: np.ndarray, risk_scores: np.ndarray, chunk_size: int = 2000) -> float:
+    """Pure numpy fallback for Harrell's C-index with memory-efficient chunking."""
     event_times = np.asarray(event_times)
     events = np.asarray(events, dtype=bool)
     risk_scores = np.asarray(risk_scores)
@@ -33,18 +33,28 @@ def _numpy_cindex(event_times: np.ndarray, events: np.ndarray, risk_scores: np.n
     if not np.any(events):
         return 0.5
 
-    # ⚡ Bolt: Vectorized numpy broadcasting to replace O(N^2) explicit python loops
+    # ⚡ Bolt: Vectorized numpy broadcasting with chunking to replace O(N^2) memory bomb
     t_i = event_times[events]
     r_i = risk_scores[events]
 
-    valid_pairs = t_i[:, None] < event_times[None, :]
-    total = np.sum(valid_pairs)
+    total = 0
+    conc = 0
+    ties = 0
+
+    n_events = len(t_i)
+    for i in range(0, n_events, chunk_size):
+        end = min(i + chunk_size, n_events)
+        t_chunk = t_i[i:end]
+        r_chunk = r_i[i:end]
+
+        valid_pairs = t_chunk[:, None] < event_times[None, :]
+        total += np.sum(valid_pairs)
+
+        conc += np.sum((r_chunk[:, None] > risk_scores[None, :]) & valid_pairs)
+        ties += np.sum((r_chunk[:, None] == risk_scores[None, :]) & valid_pairs)
 
     if total == 0:
         return 0.5
-
-    conc = np.sum((r_i[:, None] > risk_scores[None, :]) & valid_pairs)
-    ties = np.sum((r_i[:, None] == risk_scores[None, :]) & valid_pairs)
 
     return float((conc + 0.5 * ties) / total)
 
