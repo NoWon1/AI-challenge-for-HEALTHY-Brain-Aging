@@ -43,3 +43,7 @@ This resulted in a 14x speedup (0.27s -> 0.02s in a 1000-row synthetic benchmark
 ## 2026-10-16 - O(N) penalty from loop-based dataframe groupby aggregations and re-merging in synthetic cohort generation
 **Learning:** In pandas, iterating over `.groupby()` objects with a python `for` loop to compute scalar group statistics (e.g., `size`, `mean`) and appending dictionaries to a list introduces significant O(N) looping overhead. The synthetic cohort generator suffered from this pattern.
 **Action:** Replace explicit `for cohort, group in baseline.groupby(...)` loops with fully vectorized aggregations (e.g., `grouped.agg(participants=("participant_id", "size"), rate=("event_by_5y", "mean"))`). Use `.map()` on columns to derive dependent features, completely avoiding explicit python loops.
+
+## 2026-10-21 - O(M) penalty from loop-based np.interp evaluations over trajectory targets
+**Learning:** In pandas and numpy data processing, invoking `np.interp()` repeatedly inside a Python `for` loop over individual target points (e.g., specific evaluation years) and re-aggregating the results with `np.std()` introduces significant interpreter overhead, especially when multiplied by the number of instances (twins).
+**Action:** Replace this pattern by passing the entire array of evaluation targets directly into `np.interp` for each instance, producing an N-by-M array. Then compute column-wise statistics (`np.std(axis=0)`) simultaneously, avoiding multiple passes through the python loop and achieving a ~3x speedup.
