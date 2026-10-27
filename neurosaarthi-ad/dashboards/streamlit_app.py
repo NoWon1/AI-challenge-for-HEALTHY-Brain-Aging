@@ -11,9 +11,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import re
-import types
-from types import MappingProxyType
-from typing import Any
 
 import altair as alt
 import pandas as pd
@@ -26,7 +23,6 @@ from demo.runtime import (
     profile_with,
 )
 from demo.synthetic import generate_demo_cohort
-
 
 COLORS = {
     "teal": "#0F5C5B",
@@ -80,7 +76,9 @@ def _inject_styles() -> None:
     )
 
 
-from collections.abc import Mapping, Sequence, Set as AbstractSet
+from collections.abc import Mapping, Sequence
+from collections.abc import Set as AbstractSet
+
 
 def _secure_value(val):
     if isinstance(val, dict):
@@ -89,6 +87,10 @@ def _secure_value(val):
         return ImmutableListProxy(val)
     if isinstance(val, set):
         return ImmutableSetProxy(val)
+    if isinstance(val, tuple):
+        if hasattr(type(val), "_fields"):
+            return type(val)(*(_secure_value(x) for x in val))
+        return tuple(_secure_value(x) for x in val)
     if isinstance(val, pd.DataFrame):
         return val.copy(deep=True)
     return val

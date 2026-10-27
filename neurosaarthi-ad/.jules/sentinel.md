@@ -12,3 +12,13 @@
 **Vulnerability:** The `scripts/export_models.py` script constructed model export paths using unvalidated dynamic inputs (`modality` and `model_name`), leaving it vulnerable to Path Traversal (CWE-22) if untrusted configurations were processed.
 **Learning:** Even internal helper scripts must sanitize dynamically generated file paths (using `Path(name).name`) and perform strict bounds-checking against the intended target directory to prevent adversarial configurations from writing artifacts outside of restricted scopes.
 **Prevention:** Sanitize dynamic filename components by stripping directory parts using `Path(name).name`, and enforce explicit path resolution validation by ensuring the resolved path is within the intended base directory using `path.resolve().is_relative_to(base_dir)`.
+
+## 2025-02-23 - Prevented Cross-Session State Corruption via Shallow Tuples (CWE-374)
+**Vulnerability:** The `ImmutableRuntimeProxy` in `dashboards/streamlit_app.py` did not intercept and recursively secure `tuple` types. Since tuples are only shallowly immutable, nested mutable states could leak and be modified.
+**Learning:** Shallow immutability structures are insufficient for complex cached objects. Furthermore, when deep-securing tuples, it is critical to preserve `namedtuple` schemas (by checking for `_fields` and using `type(val)(...)`) to avoid breaking attribute-based access.
+**Prevention:** Always intercept and recursively secure elements within `tuple` types while preserving `namedtuple` schemas when enforcing deep immutability on Streamlit cached objects.
+
+## 2025-02-23 - Prevented Information Leakage via Streamlit Config (CWE-200)
+**Vulnerability:** The Streamlit app configuration (`.streamlit/config.toml`) used the deprecated boolean value `showErrorDetails = false`, which causes tracebacks and internal stack traces to leak to the client on unhandled exceptions.
+**Learning:** For `showErrorDetails`, using `false` is deprecated and doesn't fully suppress error details in newer Streamlit versions. The proper way to suppress tracebacks is to place `showErrorDetails = "none"` strictly under the `[client]` section.
+**Prevention:** Always configure `showErrorDetails = "none"` under `[client]` in `.streamlit/config.toml` for production Streamlit deployments to prevent information leakage (CWE-200).
