@@ -11,9 +11,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import re
-import types
-from types import MappingProxyType
-from typing import Any
 
 import altair as alt
 import pandas as pd
@@ -26,7 +23,6 @@ from demo.runtime import (
     profile_with,
 )
 from demo.synthetic import generate_demo_cohort
-
 
 COLORS = {
     "teal": "#0F5C5B",
@@ -80,7 +76,9 @@ def _inject_styles() -> None:
     )
 
 
-from collections.abc import Mapping, Sequence, Set as AbstractSet
+from collections.abc import Mapping, Sequence
+from collections.abc import Set as AbstractSet
+
 
 def _secure_value(val):
     if isinstance(val, dict):
@@ -89,27 +87,66 @@ def _secure_value(val):
         return ImmutableListProxy(val)
     if isinstance(val, set):
         return ImmutableSetProxy(val)
+    if isinstance(val, tuple):
+        return ImmutableTupleProxy(val)
     if isinstance(val, pd.DataFrame):
         return val.copy(deep=True)
     return val
 
+
+class ImmutableTupleProxy:
+    def __init__(self, tpl):
+        self._tpl = tpl
+
+    def __getattr__(self, name):
+        val = getattr(self._tpl, name)
+        return _secure_value(val)
+
+    def __getitem__(self, idx):
+        return _secure_value(self._tpl[idx])
+
+    def __len__(self):
+        return len(self._tpl)
+
+    def __iter__(self):
+        for item in self._tpl:
+            yield _secure_value(item)
+
+    def __eq__(self, other):
+        if not isinstance(other, tuple):
+            return False
+        if len(self) != len(other):
+            return False
+        return all(a == b for a, b in zip(self, other, strict=False))
+
+    def __repr__(self):
+        return f"ImmutableTupleProxy({self._tpl!r})"
+
+
 class ImmutableDictProxy(Mapping):
     def __init__(self, d):
         self._d = d
+
     def __getitem__(self, key):
         return _secure_value(self._d[key])
+
     def __iter__(self):
         return iter(self._d)
+
     def __len__(self):
         return len(self._d)
+
 
 class ImmutableListProxy(Sequence):
     def __init__(self, lst):
         self._lst = lst
+
     def __getitem__(self, idx):
         return _secure_value(self._lst[idx])
+
     def __len__(self):
         return len(self._lst)
+
     def __eq__(self, other):
         if not isinstance(other, (list, tuple, Sequence)):
             return False
@@ -117,19 +154,25 @@ class ImmutableListProxy(Sequence):
             return False
         return all(a == b for a, b in zip(self, other))
 
+
 class ImmutableSetProxy(AbstractSet):
     def __init__(self, s):
         self._s = s
+
     def __contains__(self, item):
         return item in self._s
+
     def __iter__(self):
         return (_secure_value(x) for x in self._s)
+
     def __len__(self):
         return len(self._s)
+
     def __eq__(self, other):
         if not isinstance(other, (set, frozenset, AbstractSet)):
             return False
         return set(self) == set(other)
+
 
 class ImmutableRuntimeProxy:
     """Read-only proxy to prevent cross-session state corruption in Streamlit cache."""
