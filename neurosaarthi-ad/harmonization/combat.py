@@ -45,6 +45,7 @@ class TrainOnlyComBat:
     )
     _fitted: bool = field(default=False, repr=False, init=False)
 
+    
     def fit(self, frame: pd.DataFrame) -> TrainOnlyComBat:
         data = frame[self.feature_columns].astype(float)
         self._grand_mean = data.mean()
