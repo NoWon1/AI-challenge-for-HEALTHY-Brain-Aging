@@ -1,2 +1,1 @@
 """NACC ETL adapter package."""
-

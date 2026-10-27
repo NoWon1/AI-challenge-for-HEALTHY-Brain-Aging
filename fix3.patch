@@ -1,0 +1,15 @@
+--- dashboards/streamlit_app.py
++++ dashboards/streamlit_app.py
+@@ -34,6 +34,12 @@
+         # Protect internal dictionary lookups from in-place modification
+         if isinstance(attr, dict):
+             return MappingProxyType(attr)
++        if isinstance(attr, pd.DataFrame):
++            return attr.copy(deep=True)
++        if isinstance(attr, list):
++            return tuple(attr)
++        if isinstance(attr, set):
++            return frozenset(attr)
+         return attr
+
+     def __setattr__(self, name: str, value: Any) -> None:

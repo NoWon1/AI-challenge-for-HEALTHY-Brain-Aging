@@ -141,7 +141,9 @@ class TwinLiteRetriever:
 
         if self.metric == "mahalanobis" and self._cov_inv is not None:
             # d_M(x,y) = sqrt( (x-y)^T Σ^{-1} (x-y) )
-            return np.sqrt(np.einsum("ij,jk,ik->i", diff, self._cov_inv, diff).clip(0.0))
+            return np.sqrt(
+                np.einsum("ij,jk,ik->i", diff, self._cov_inv, diff).clip(0.0)
+            )
 
         if self.metric == "importance_weighted" and self._weight_vector is not None:
             weighted_diff = diff * np.sqrt(self._weight_vector)

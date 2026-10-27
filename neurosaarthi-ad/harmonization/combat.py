@@ -4,6 +4,7 @@ Implements a simplified parametric empirical Bayes adjustment
 (Johnson et al., 2007) fitted exclusively on training data to prevent
 validation leakage. Biological covariates (age, sex) are preserved.
 """
+
 from __future__ import annotations
 
 import logging
@@ -14,10 +15,11 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class TrainOnlyComBat:
     """Empirical Bayes batch-effect correction fitted only on training data.
-    
+
     Parameters
     ----------
     batch_col : str
@@ -27,22 +29,28 @@ class TrainOnlyComBat:
     preserve_columns : list[str]
         Biological covariates to preserve during harmonisation (e.g. age, sex).
     """
+
     batch_col: str = "cohort"
     feature_columns: list[str] = field(default_factory=list)
     preserve_columns: list[str] = field(default_factory=lambda: ["age", "sex_binary"])
-    
+
     # Fitted parameters
     _grand_mean: pd.Series = field(default=None, repr=False, init=False)
     _grand_std: pd.Series = field(default=None, repr=False, init=False)
-    _batch_means: dict[str, pd.Series] = field(default_factory=dict, repr=False, init=False)
-    _batch_stds: dict[str, pd.Series] = field(default_factory=dict, repr=False, init=False)
+    _batch_means: dict[str, pd.Series] = field(
+        default_factory=dict, repr=False, init=False
+    )
+    _batch_stds: dict[str, pd.Series] = field(
+        default_factory=dict, repr=False, init=False
+    )
     _fitted: bool = field(default=False, repr=False, init=False)
+
     
     def fit(self, frame: pd.DataFrame) -> TrainOnlyComBat:
         data = frame[self.feature_columns].astype(float)
         self._grand_mean = data.mean()
         self._grand_std = data.std().replace(0.0, 1.0).fillna(1.0)
-        
+
         # Residualise preserve_columns via simple regression
         residuals = data.copy()
         preserve_available = [c for c in self.preserve_columns if c in frame.columns]
@@ -52,25 +60,28 @@ class TrainOnlyComBat:
             for col in self.feature_columns:
                 y = data[col].fillna(data[col].median())
                 X = X_preserve.copy()
-                X['intercept'] = 1.0
+                X["intercept"] = 1.0
                 try:
                     beta = np.linalg.lstsq(X.values, y.values, rcond=None)[0]
                     residuals[col] = y - X.values @ beta
                 except np.linalg.LinAlgError:
-                    logger.warning("LinAlgError during residualisation for column %s. Skipping residualisation for this feature.", col)
-        
+                    logger.warning(
+                        "LinAlgError during residualisation for column %s. Skipping residualisation for this feature.",
+                        col,
+                    )
+
         # ⚡ Bolt: Vectorized groupby aggregations avoid slow explicit Python loops
         # Batch-specific location and scale from residuals
         grouped = residuals.groupby(frame[self.batch_col], sort=False)
         self._batch_means = grouped.mean()
         self._batch_stds = grouped.std().replace(0.0, 1.0).fillna(1.0)
-        
+
         self._fitted = True
         return self
-    
+
     def transform(self, frame: pd.DataFrame) -> pd.DataFrame:
         if not self._fitted:
-            raise RuntimeError('TrainOnlyComBat must be fitted before transform')
+            raise RuntimeError("TrainOnlyComBat must be fitted before transform")
         result = frame.copy()
         data = result[self.feature_columns].astype(float)
 
@@ -82,17 +93,17 @@ class TrainOnlyComBat:
 
         std_df = self._batch_stds.reindex(batch_col_vals).fillna(1.0)
         std_df.index = result.index
-        
+
         # Standardise within batch, then rescale to grand distribution
         standardised = (data - mean_df) / std_df
         harmonised = standardised * self._grand_std + self._grand_mean
         result[self.feature_columns] = harmonised
-        
+
         return result
-    
+
     def fit_transform(self, frame: pd.DataFrame) -> pd.DataFrame:
         return self.fit(frame).transform(frame)
-    
+
     def diagnostics(self, frame: pd.DataFrame) -> pd.DataFrame:
         # ⚡ Bolt: Vectorized groupby aggregations avoid slow explicit Python loops
         data = frame[self.feature_columns].astype(float)
@@ -100,13 +111,16 @@ class TrainOnlyComBat:
 
         means = grouped.mean().stack(dropna=False)
         stds = grouped.std().stack(dropna=False)
-        missing = data.isna().groupby(frame[self.batch_col], sort=False).mean().stack(dropna=False)
+        missing = (
+            data.isna()
+            .groupby(frame[self.batch_col], sort=False)
+            .mean()
+            .stack(dropna=False)
+        )
 
-        df = pd.DataFrame({
-            'mean': means,
-            'std': stds,
-            'missing_rate': missing
-        }).reset_index()
-        df.columns = ['batch', 'feature', 'mean', 'std', 'missing_rate']
-        df['harmonised'] = self._fitted
+        df = pd.DataFrame(
+            {"mean": means, "std": stds, "missing_rate": missing}
+        ).reset_index()
+        df.columns = ["batch", "feature", "mean", "std", "missing_rate"]
+        df["harmonised"] = self._fitted
         return df

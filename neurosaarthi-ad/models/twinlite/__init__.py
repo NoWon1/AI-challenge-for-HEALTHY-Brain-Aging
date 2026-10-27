@@ -1,2 +1,1 @@
 """Digital twin lite retrieval."""
-

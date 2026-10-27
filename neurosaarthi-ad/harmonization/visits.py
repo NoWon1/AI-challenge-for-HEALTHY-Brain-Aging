@@ -6,7 +6,11 @@ import numpy as np
 import pandas as pd
 
 
-def add_baseline_offsets(visits: pd.DataFrame, participant_col: str = "participant_id", date_col: str = "visit_date") -> pd.DataFrame:
+def add_baseline_offsets(
+    visits: pd.DataFrame,
+    participant_col: str = "participant_id",
+    date_col: str = "visit_date",
+) -> pd.DataFrame:
     """Add days from first observed visit for each participant."""
 
     output = visits.copy()
@@ -16,11 +20,22 @@ def add_baseline_offsets(visits: pd.DataFrame, participant_col: str = "participa
     return output
 
 
-def require_monotonic_visits(visits: pd.DataFrame, participant_col: str = "participant_id", order_col: str = "visit_index") -> None:
+def require_monotonic_visits(
+    visits: pd.DataFrame,
+    participant_col: str = "participant_id",
+    order_col: str = "visit_index",
+) -> None:
     # ⚡ Bolt: Fast-path vectorised monotonicity check avoids slow loops for the happy path
     if visits.empty:
         return
 
+    if (
+        visits.groupby(participant_col, sort=False)[order_col]
+        .diff()
+        .fillna(0)
+        .ge(0)
+        .all()
+    ):
     # Use fully vectorized numpy slice logic to avoid slow O(N) Pandas groupby loop overhead
     # We must sort by participant_id first to ensure contiguous groups for slice comparisons
     # NOTE: Do NOT sort by order_col, otherwise we are just reordering the visits and defeating the check!
@@ -38,4 +53,3 @@ def require_monotonic_visits(visits: pd.DataFrame, participant_col: str = "parti
         values = group[order_col].tolist()
         if values != sorted(values):
             raise ValueError("Visits are not monotonic for one or more participants")
-

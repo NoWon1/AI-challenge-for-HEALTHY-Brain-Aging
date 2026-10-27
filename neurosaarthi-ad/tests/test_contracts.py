@@ -14,4 +14,3 @@ def test_contract_rejects_missing_required_column():
         assert "cohort" in str(exc)
     else:
         raise AssertionError("Expected missing cohort column to fail validation")
-
