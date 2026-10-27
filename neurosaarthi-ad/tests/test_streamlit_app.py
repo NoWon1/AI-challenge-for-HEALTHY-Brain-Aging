@@ -1,11 +1,11 @@
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
 from dashboards.streamlit_app import ImmutableRuntimeProxy
 
-import pandas as pd
 
 class DummyTarget:
     def __init__(self):
@@ -13,6 +13,8 @@ class DummyTarget:
         self.config = {"key": "value"}
         self.lst = [1, 2, 3]
         self.df = pd.DataFrame({"col": [1]})
+        self.nested_tuple = ([1, 2], {"a": 1})
+
 
 def test_immutable_runtime_proxy():
     target = DummyTarget()
@@ -34,10 +36,16 @@ def test_immutable_runtime_proxy():
     # Test list tuple proxy
     assert proxy.lst == (1, 2, 3)
 
+    # Test nested tuple proxy
+    with pytest.raises(TypeError):
+        proxy.nested_tuple[1]["a"] = 2
+    assert proxy.nested_tuple[0] == [1, 2]
+
     # Test DataFrame proxy
     df_copy = proxy.df
     df_copy.loc[0, "col"] = 99
     assert proxy.df.loc[0, "col"] == 1  # Should not affect the original
+
 
 def test_streamlit_judge_demo_smoke():
     app_path = Path(__file__).parents[1] / "dashboards" / "streamlit_app.py"

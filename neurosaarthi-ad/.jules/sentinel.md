@@ -12,3 +12,8 @@
 **Vulnerability:** The `scripts/export_models.py` script constructed model export paths using unvalidated dynamic inputs (`modality` and `model_name`), leaving it vulnerable to Path Traversal (CWE-22) if untrusted configurations were processed.
 **Learning:** Even internal helper scripts must sanitize dynamically generated file paths (using `Path(name).name`) and perform strict bounds-checking against the intended target directory to prevent adversarial configurations from writing artifacts outside of restricted scopes.
 **Prevention:** Sanitize dynamic filename components by stripping directory parts using `Path(name).name`, and enforce explicit path resolution validation by ensuring the resolved path is within the intended base directory using `path.resolve().is_relative_to(base_dir)`.
+
+## 2025-02-23 - Prevented State Bleed via Tuples in Streamlit Cache (CWE-374)
+**Vulnerability:** The `ImmutableRuntimeProxy` implementation in `dashboards/streamlit_app.py` previously converted tuples via downcasting or failed to protect tuple-subclasses like `collections.namedtuple` and `os.stat_result`, allowing nested mutable objects (e.g. lists inside tuples) to bypass deep immutability protection.
+**Learning:** Shallow immutability structures like tuples in Python still leak underlying mutable state. Re-casting them directly via generators destroys critical properties on custom tuple subclasses (like C-extension structseqs).
+**Prevention:** Always implement lazy wrapping proxies for nested tuple items using `__getattr__` and `__getitem__` interception (like `ImmutableTupleProxy`) to safely present immutable interfaces for cached collections without destroying their underlying metadata/type structures.
