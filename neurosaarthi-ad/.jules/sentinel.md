@@ -17,6 +17,10 @@
 **Learning:** Even internal helper scripts must sanitize dynamically generated file paths (using `Path(name).name`) and perform strict bounds-checking against the intended target directory to prevent adversarial configurations from writing artifacts outside of restricted scopes.
 **Prevention:** Sanitize dynamic filename components by stripping directory parts using `Path(name).name`, and enforce explicit path resolution validation by ensuring the resolved path is within the intended base directory using `path.resolve().is_relative_to(base_dir)`.
 
+## 2025-02-23 - Prevented State Pollution via Shallow Tuple Immutability (CWE-374)
+**Vulnerability:** The `ImmutableRuntimeProxy` did not recursively traverse and secure elements inside `tuple` objects, allowing mutable nested collections (like dicts/lists inside tuples) to bypass proxy restrictions and enabling cross-session state corruption. Numpy arrays were also exposed.
+**Learning:** A Python `tuple` is only shallowly immutable. While the sequence of references cannot change, the underlying objects it holds remain mutable.
+**Prevention:** Ensure deep immutability proxies explicitly intercept and recursively secure elements within tuples (`tuple(_secure_value(x) for x in val)`). For NumPy arrays, explicitly enforce `flags.writeable = False` on copies exposed to untrusted dashboard contexts.
 ## 2025-02-23 - Prevented Cross-Session State Corruption via Shallow Tuples (CWE-374)
 **Vulnerability:** The `ImmutableRuntimeProxy` in `dashboards/streamlit_app.py` did not intercept and recursively secure `tuple` types. Since tuples are only shallowly immutable, nested mutable states could leak and be modified.
 **Learning:** Shallow immutability structures are insufficient for complex cached objects. Furthermore, when deep-securing tuples, it is critical to preserve `namedtuple` schemas (by checking for `_fields` and using `type(val)(...)`) to avoid breaking attribute-based access.
