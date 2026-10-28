@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -11,6 +12,10 @@ class DummyTarget:
     def __init__(self):
         self.value = 42
         self.config = {"key": "value"}
+        self.df = pd.DataFrame({"a": [1, 2]})
+        self.my_list = [1, 2, 3]
+        self.my_set = {1, 2, 3}
+
         self.lst = [1, 2, 3]
         self.df = pd.DataFrame({"col": [1]})
 
@@ -30,6 +35,13 @@ def test_immutable_runtime_proxy():
     # Test dictionary mapping proxy
     with pytest.raises(TypeError):
         proxy.config["key"] = "new_value"
+
+    assert isinstance(proxy.df, pd.DataFrame)
+    assert proxy.df is not target.df
+    assert isinstance(proxy.my_list, tuple)
+    assert proxy.my_list == (1, 2, 3)
+    assert isinstance(proxy.my_set, frozenset)
+    assert proxy.my_set == frozenset({1, 2, 3})
 
     # Test list tuple proxy
     assert proxy.lst == (1, 2, 3)

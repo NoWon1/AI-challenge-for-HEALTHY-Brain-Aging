@@ -5,10 +5,16 @@ from __future__ import annotations
 import pandas as pd
 
 
-def assert_no_future_features(frame: pd.DataFrame, anchor_col: str = "anchor_days", feature_time_col: str = "feature_days") -> None:
+def assert_no_future_features(
+    frame: pd.DataFrame,
+    anchor_col: str = "anchor_days",
+    feature_time_col: str = "feature_days",
+) -> None:
     leaking = frame[frame[feature_time_col] > frame[anchor_col]]
     if not leaking.empty:
-        raise ValueError(f"Found {len(leaking)} feature rows after the prediction anchor")
+        raise ValueError(
+            f"Found {len(leaking)} feature rows after the prediction anchor"
+        )
 
 
 def assert_disjoint_participants(train_ids: set[str], *other_id_sets: set[str]) -> None:
@@ -16,5 +22,6 @@ def assert_disjoint_participants(train_ids: set[str], *other_id_sets: set[str]) 
         overlap = train_ids.intersection(ids)
         if overlap:
             # 🛡️ Sentinel: Fail securely by logging counts instead of leaking raw PII (participant_ids) in exception messages
-            raise ValueError(f"Train participants overlap split {index}: {len(overlap)} participants")
-
+            raise ValueError(
+                f"Train participants overlap split {index}: {len(overlap)} participants"
+            )
