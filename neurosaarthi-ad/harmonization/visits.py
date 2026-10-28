@@ -29,6 +29,13 @@ def require_monotonic_visits(
     if visits.empty:
         return
 
+    if (
+        visits.groupby(participant_col, sort=False)[order_col]
+        .diff()
+        .fillna(0)
+        .ge(0)
+        .all()
+    ):
     # Use fully vectorized numpy slice logic to avoid slow O(N) Pandas groupby loop overhead
     # We must sort by participant_id first to ensure contiguous groups for slice comparisons
     # NOTE: Do NOT sort by order_col, otherwise we are just reordering the visits and defeating the check!

@@ -91,6 +91,7 @@ class SHAPExplainer:
                     predict_fn = getattr(
                         self.model, "predict_proba", self.model.predict
                     )
+                    predict_fn = getattr(self.model, "predict_proba", self.model.predict)
                     # 100 samples as background
                     bg = shap.sample(X, 100) if len(X) > 100 else X
                     self._explainer = shap.KernelExplainer(predict_fn, bg)

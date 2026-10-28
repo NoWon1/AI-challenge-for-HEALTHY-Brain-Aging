@@ -139,6 +139,12 @@ class AdniAdapter(CohortAdapter):
         )
         raw["visit_id"] = raw["participant_id"] + "-V" + raw["visit_index"].astype(str)
 
+        raw['participant_id'] = 'ADNI-' + raw['RID'].astype(str).str.zfill(4)
+        raw['visit_index'] = raw['VISCODE'].str.lower().map(
+            {'bl': 0, 'sc': 0, **{f'm{m:02d}': m//6 for m in range(6,180,6)}, **{f'm{m}': m//6 for m in range(6,180,6)}}
+        ).fillna(0).astype(int)
+        raw['visit_id'] = raw['participant_id'] + '-V' + raw['visit_index'].astype(str)
+        
         feature_map = {
             # Cognition
             "MMSE": ("cognition", "cognitive_score", "points"),
