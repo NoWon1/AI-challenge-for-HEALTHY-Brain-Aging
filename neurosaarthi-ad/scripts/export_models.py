@@ -20,27 +20,26 @@ runtime = build_demo_runtime(bundle=bundle, n_bootstrap=1)
 
 # 2. Save classification pipelines (LightGBM)
 for modality, ensemble in getattr(runtime, "risk_models", {}).items():
-    path = (
-        OUT_DIR
-        / f"risk_{modality.replace('+', '').replace('/', '_').replace(' ', '_')}.joblib"
-    )
-    safe_modality = (
-        Path(modality).name.replace("+", "").replace("/", "_").replace(" ", "_")
-    )
-    path = OUT_DIR / f"risk_{safe_modality}.joblib"
-    if not path.resolve().is_relative_to(OUT_DIR.resolve()):
+    safe_modality = modality.replace("+", "").replace("/", "_").replace(" ", "_")
+
+    # Sentinel Defense-in-Depth: Path traversal protection (CWE-22)
+    resolved_out = OUT_DIR.resolve()
+    target_path = (resolved_out / Path(f"risk_{safe_modality}.joblib").name).resolve()
+    if not target_path.is_relative_to(resolved_out):
         raise ValueError(f"Path traversal detected in modality name: {modality}")
+    path = target_path
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as f:
         joblib.dump(ensemble, f)
 
 # 3. Save survival models (RSF / CoxBoost)
 for model_name, model in getattr(runtime, "survival_models", {}).items():
-    path = OUT_DIR / f"survival_{model_name}.joblib"
-    safe_model_name = Path(model_name).name
-    path = OUT_DIR / f"survival_{safe_model_name}.joblib"
-    if not path.resolve().is_relative_to(OUT_DIR.resolve()):
+    # Sentinel Defense-in-Depth: Path traversal protection (CWE-22)
+    resolved_out = OUT_DIR.resolve()
+    target_path = (resolved_out / Path(f"survival_{model_name}.joblib").name).resolve()
+    if not target_path.is_relative_to(resolved_out):
         raise ValueError(f"Path traversal detected in model name: {model_name}")
+    path = target_path
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as f:
         joblib.dump(model, f)
