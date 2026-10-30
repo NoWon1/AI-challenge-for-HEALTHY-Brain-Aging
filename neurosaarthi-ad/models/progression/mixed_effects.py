@@ -31,7 +31,6 @@ class MixedEffectsTrajectory:
     def fit(
         self, frame: pd.DataFrame, target_col: str = "future_score"
     ) -> MixedEffectsTrajectory:
-    def fit(self, frame: pd.DataFrame, target_col: str = "future_score") -> MixedEffectsTrajectory:
         """Fit the mixed-effects model.
 
         Uses statsmodels MixedLM if available, fitting random intercepts and slopes.
@@ -57,12 +56,22 @@ class MixedEffectsTrajectory:
                     "Neither statsmodels nor sklearn is available for fallback."
                 )
 
-            for name, group in frame.groupby(self.group_col):
-                X = group[self.feature_columns].astype(float).fillna(0.0)
-                y = group[target_col].astype(float)
-                # simple Ridge fallback
-                m = Ridge(alpha=1.0).fit(X, y)
-                self.models_[name] = m
+            # ⚡ Bolt: Vectorized boundary detection avoids slow O(N) Pandas groupby loop overhead
+            sorted_frame = frame.sort_values(self.group_col, kind="mergesort")
+            groups_arr = sorted_frame[self.group_col].to_numpy()
+            X_arr = sorted_frame[self.feature_columns].astype(float).fillna(0.0).to_numpy()
+            y_arr = sorted_frame[target_col].astype(float).to_numpy()
+
+            if len(groups_arr) > 0:
+                boundaries = np.where(groups_arr[:-1] != groups_arr[1:])[0] + 1
+                X_splits = np.split(X_arr, boundaries)
+                y_splits = np.split(y_arr, boundaries)
+                group_names = np.split(groups_arr, boundaries)
+
+                for X, y, g in zip(X_splits, y_splits, group_names):
+                    m = Ridge(alpha=1.0).fit(X, y)
+                    self.models_[g[0]] = m
+
 
             # Global model for unknown participants
             X_all = frame[self.feature_columns].astype(float).fillna(0.0)
@@ -139,7 +148,6 @@ class MixedEffectsTrajectory:
     def calibrate_conformal(
         self, residuals: np.ndarray | pd.Series, alpha: float = 0.1
     ) -> MixedEffectsTrajectory:
-    def calibrate_conformal(self, residuals: np.ndarray | pd.Series, alpha: float = 0.1) -> MixedEffectsTrajectory:
         """Compute the conformal quantile from held-out residuals."""
         res = np.asarray(residuals)
         n = len(res)
