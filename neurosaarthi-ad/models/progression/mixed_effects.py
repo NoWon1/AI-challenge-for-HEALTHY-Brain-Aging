@@ -56,6 +56,22 @@ class MixedEffectsTrajectory:
                     "Neither statsmodels nor sklearn is available for fallback."
                 )
 
+            # ⚡ Bolt: Vectorized boundary detection avoids slow O(N) Pandas groupby loop overhead
+            sorted_frame = frame.sort_values(self.group_col, kind="mergesort")
+            groups_arr = sorted_frame[self.group_col].to_numpy()
+            X_arr = sorted_frame[self.feature_columns].astype(float).fillna(0.0).to_numpy()
+            y_arr = sorted_frame[target_col].astype(float).to_numpy()
+
+            if len(groups_arr) > 0:
+                boundaries = np.where(groups_arr[:-1] != groups_arr[1:])[0] + 1
+                X_splits = np.split(X_arr, boundaries)
+                y_splits = np.split(y_arr, boundaries)
+                group_names = np.split(groups_arr, boundaries)
+
+                for X, y, g in zip(X_splits, y_splits, group_names):
+                    m = Ridge(alpha=1.0).fit(X, y)
+                    self.models_[g[0]] = m
+
             # ⚡ Bolt: Use pre-sorted numpy array splits to avoid O(N) overhead of Pandas groupby loops
             sorted_frame = frame.sort_values(self.group_col, kind="mergesort")
             groups = sorted_frame[self.group_col].to_numpy()
