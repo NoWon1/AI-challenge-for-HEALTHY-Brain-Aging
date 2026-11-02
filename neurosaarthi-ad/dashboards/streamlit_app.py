@@ -11,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import re
+import types
 from types import MappingProxyType
 from typing import Any
 
@@ -197,7 +198,25 @@ class ImmutableRuntimeProxy:
         object.__setattr__(self, "_obj", obj)
 
     def __getattr__(self, name):
+        def _freeze_value(val):
+            if isinstance(val, dict):
+                return types.MappingProxyType(
+                    {k: _freeze_value(v) for k, v in val.items()}
+                )
+            if isinstance(val, list):
+                return tuple(_freeze_value(x) for x in val)
+            if isinstance(val, set):
+                return frozenset(_freeze_value(x) for x in val)
+            if isinstance(val, tuple):
+                if hasattr(val, "_fields"):  # namedtuple
+                    return type(val)(*(_freeze_value(x) for x in val))
+                return tuple(_freeze_value(x) for x in val)
+            if isinstance(val, pd.DataFrame):
+                return val.copy(deep=True)
+            return val
+
         val = getattr(self._obj, name)
+        return _freeze_value(val)
         return _secure_value(val)
 
     def __setattr__(self, name, value):

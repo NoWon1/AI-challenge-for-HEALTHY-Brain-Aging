@@ -56,6 +56,12 @@ class MixedEffectsTrajectory:
                     "Neither statsmodels nor sklearn is available for fallback."
                 )
 
+            for name, group in frame.groupby(self.group_col):
+                X = group[self.feature_columns].astype(float).fillna(0.0)
+                y = group[target_col].astype(float)
+                # simple Ridge fallback
+                m = Ridge(alpha=1.0).fit(X, y)
+                self.models_[name] = m
             # ⚡ Bolt: Vectorized boundary detection avoids slow O(N) Pandas groupby loop overhead
             sorted_frame = frame.sort_values(self.group_col, kind="mergesort")
             groups_arr = sorted_frame[self.group_col].to_numpy()

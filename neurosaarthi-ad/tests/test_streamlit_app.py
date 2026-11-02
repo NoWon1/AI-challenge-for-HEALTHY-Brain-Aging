@@ -10,6 +10,7 @@ from dashboards.streamlit_app import ImmutableRuntimeProxy
 class DummyTarget:
     def __init__(self):
         self.value = 42
+        self.config = {"key": "value", "nested": {"inner": 1}}
         self.config = {"key": "value"}
         self.df = pd.DataFrame({"a": [1, 2]})
         self.my_list = [1, 2, 3]
@@ -36,6 +37,9 @@ def test_immutable_runtime_proxy():
     with pytest.raises(TypeError):
         proxy.config["key"] = "new_value"
 
+    # Test nested dictionary proxy
+    with pytest.raises(TypeError):
+        proxy.config["nested"]["inner"] = 2
     assert isinstance(proxy.df, pd.DataFrame)
     assert proxy.df is not target.df
     assert isinstance(proxy.my_list, tuple)
