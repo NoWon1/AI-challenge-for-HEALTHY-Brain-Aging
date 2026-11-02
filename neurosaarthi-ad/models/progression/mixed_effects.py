@@ -62,6 +62,41 @@ class MixedEffectsTrajectory:
                 # simple Ridge fallback
                 m = Ridge(alpha=1.0).fit(X, y)
                 self.models_[name] = m
+            # ⚡ Bolt: Vectorized boundary detection avoids slow O(N) Pandas groupby loop overhead
+            sorted_frame = frame.sort_values(self.group_col, kind="mergesort")
+            groups_arr = sorted_frame[self.group_col].to_numpy()
+            X_arr = sorted_frame[self.feature_columns].astype(float).fillna(0.0).to_numpy()
+            y_arr = sorted_frame[target_col].astype(float).to_numpy()
+
+            if len(groups_arr) > 0:
+                boundaries = np.where(groups_arr[:-1] != groups_arr[1:])[0] + 1
+                X_splits = np.split(X_arr, boundaries)
+                y_splits = np.split(y_arr, boundaries)
+                group_names = np.split(groups_arr, boundaries)
+
+                for X, y, g in zip(X_splits, y_splits, group_names):
+                    m = Ridge(alpha=1.0).fit(X, y)
+                    self.models_[g[0]] = m
+
+            # ⚡ Bolt: Use pre-sorted numpy array splits to avoid O(N) overhead of Pandas groupby loops
+            sorted_frame = frame.sort_values(self.group_col, kind="mergesort")
+            groups = sorted_frame[self.group_col].to_numpy()
+
+            if len(groups) > 0:
+                boundaries = np.where(groups[:-1] != groups[1:])[0] + 1
+                group_names = np.split(groups, boundaries)
+
+                X_sorted = sorted_frame[self.feature_columns].astype(float).fillna(0.0).to_numpy()
+                y_sorted = sorted_frame[target_col].astype(float).to_numpy()
+
+                X_splits = np.split(X_sorted, boundaries)
+                y_splits = np.split(y_sorted, boundaries)
+
+                for names, X, y in zip(group_names, X_splits, y_splits):
+                    name = names[0]
+                    # simple Ridge fallback
+                    m = Ridge(alpha=1.0).fit(X, y)
+                    self.models_[name] = m
 
             # Global model for unknown participants
             X_all = frame[self.feature_columns].astype(float).fillna(0.0)

@@ -8,3 +8,7 @@
 ## 2026-10-15 - Vectorized structured array creation for survival models
 **Learning:** Creating `sksurv` structured arrays (e.g., `dtype=[("event", bool), ("time", float)]`) by combining parallel NumPy arrays with a Python list comprehension and `zip()` inside `np.array()` introduces a significant O(N) overhead in survival model data preparation.
 **Action:** Replace `list(zip(...))` inside `np.array()` with vectorized pre-allocation (`np.empty(N, dtype=...)`) and direct column assignments (`y["event"] = ...`) for massive performance speedups.
+
+## 2026-10-25 - Vectorized interpolation across evaluation targets
+**Learning:** Using `np.interp` repeatedly inside a Python loop over multiple evaluation points (e.g., target years for trajectory interpolation) introduces significant interpreter overhead and slows down processing across numerous twin groups.
+**Action:** Vectorize the 1D interpolation by passing the entire array of evaluation points as the first argument to `np.interp`, and combine with vectorized reductions like `np.std(axis=0)` to process all targets simultaneously.

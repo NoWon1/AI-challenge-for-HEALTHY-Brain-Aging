@@ -24,6 +24,12 @@ for modality, ensemble in getattr(runtime, "risk_models", {}).items():
         OUT_DIR
         / f"risk_{modality.replace('+', '').replace('/', '_').replace(' ', '_')}.joblib"
     )
+    safe_modality = (
+        Path(modality).name.replace("+", "").replace("/", "_").replace(" ", "_")
+    )
+    path = OUT_DIR / f"risk_{safe_modality}.joblib"
+    if not path.resolve().is_relative_to(OUT_DIR.resolve()):
+        raise ValueError(f"Path traversal detected in modality name: {modality}")
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as f:
         joblib.dump(ensemble, f)
@@ -31,6 +37,10 @@ for modality, ensemble in getattr(runtime, "risk_models", {}).items():
 # 3. Save survival models (RSF / CoxBoost)
 for model_name, model in getattr(runtime, "survival_models", {}).items():
     path = OUT_DIR / f"survival_{model_name}.joblib"
+    safe_model_name = Path(model_name).name
+    path = OUT_DIR / f"survival_{safe_model_name}.joblib"
+    if not path.resolve().is_relative_to(OUT_DIR.resolve()):
+        raise ValueError(f"Path traversal detected in model name: {model_name}")
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as f:
         joblib.dump(model, f)
