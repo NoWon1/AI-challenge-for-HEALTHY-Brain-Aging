@@ -20,6 +20,10 @@ runtime = build_demo_runtime(bundle=bundle, n_bootstrap=1)
 
 # 2. Save classification pipelines (LightGBM)
 for modality, ensemble in getattr(runtime, "risk_models", {}).items():
+    path = (
+        OUT_DIR
+        / f"risk_{modality.replace('+', '').replace('/', '_').replace(' ', '_')}.joblib"
+    )
     safe_modality = (
         Path(modality).name.replace("+", "").replace("/", "_").replace(" ", "_")
     )
@@ -32,6 +36,7 @@ for modality, ensemble in getattr(runtime, "risk_models", {}).items():
 
 # 3. Save survival models (RSF / CoxBoost)
 for model_name, model in getattr(runtime, "survival_models", {}).items():
+    path = OUT_DIR / f"survival_{model_name}.joblib"
     safe_model_name = Path(model_name).name
     path = OUT_DIR / f"survival_{safe_model_name}.joblib"
     if not path.resolve().is_relative_to(OUT_DIR.resolve()):

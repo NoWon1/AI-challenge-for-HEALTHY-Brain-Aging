@@ -92,7 +92,9 @@ class TableContract:
 
 
 def load_contract(path: str | Path | None = None) -> dict[str, TableContract]:
-    contract_path = Path(path) if path else Path(__file__).with_name("common_data_model.yaml")
+    contract_path = (
+        Path(path) if path else Path(__file__).with_name("common_data_model.yaml")
+    )
     if yaml is None:
         if path is not None:
             raise RuntimeError("pyyaml is required to load custom YAML data contracts")
@@ -111,10 +113,14 @@ def load_contract(path: str | Path | None = None) -> dict[str, TableContract]:
     }
 
 
-def validate_columns(table_name: str, columns: list[str], contract_path: str | Path | None = None) -> None:
+def validate_columns(
+    table_name: str, columns: list[str], contract_path: str | Path | None = None
+) -> None:
     contracts = load_contract(contract_path)
     if table_name not in contracts:
         raise KeyError(f"Unknown table contract: {table_name}")
     missing = contracts[table_name].missing_required(set(columns))
     if missing:
-        raise ValueError(f"{table_name} is missing required columns: {', '.join(missing)}")
+        raise ValueError(
+            f"{table_name} is missing required columns: {', '.join(missing)}"
+        )
