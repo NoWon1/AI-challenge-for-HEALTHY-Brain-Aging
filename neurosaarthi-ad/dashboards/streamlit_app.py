@@ -11,9 +11,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import re
-import types
-from types import MappingProxyType
-from typing import Any
 
 import altair as alt
 import numpy as np
@@ -128,6 +125,7 @@ def _secure_value(val):
     if isinstance(val, set):
         return ImmutableSetProxy(val)
     if isinstance(val, tuple):
+        return ImmutableTupleProxy(val)
         if hasattr(type(val), "_fields"):
             return type(val)(*(_secure_value(x) for x in val))
         return tuple(_secure_value(x) for x in val)
@@ -138,6 +136,35 @@ def _secure_value(val):
         val_copy.flags.writeable = False
         return val_copy
     return val
+
+
+class ImmutableTupleProxy:
+    def __init__(self, tpl):
+        self._tpl = tpl
+
+    def __getattr__(self, name):
+        val = getattr(self._tpl, name)
+        return _secure_value(val)
+
+    def __getitem__(self, idx):
+        return _secure_value(self._tpl[idx])
+
+    def __len__(self):
+        return len(self._tpl)
+
+    def __iter__(self):
+        for item in self._tpl:
+            yield _secure_value(item)
+
+    def __eq__(self, other):
+        if not isinstance(other, tuple):
+            return False
+        if len(self) != len(other):
+            return False
+        return all(a == b for a, b in zip(self, other, strict=False))
+
+    def __repr__(self):
+        return f"ImmutableTupleProxy({self._tpl!r})"
 
 
 class ImmutableDictProxy(Mapping):

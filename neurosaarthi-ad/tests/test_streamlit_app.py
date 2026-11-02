@@ -18,6 +18,8 @@ class DummyTarget:
 
         self.lst = [1, 2, 3]
         self.df = pd.DataFrame({"col": [1]})
+        self.nested_tuple = ([1, 2], {"a": 1})
+
 
 
 def test_immutable_runtime_proxy():
@@ -49,6 +51,11 @@ def test_immutable_runtime_proxy():
 
     # Test list tuple proxy
     assert proxy.lst == (1, 2, 3)
+
+    # Test nested tuple proxy
+    with pytest.raises(TypeError):
+        proxy.nested_tuple[1]["a"] = 2
+    assert proxy.nested_tuple[0] == [1, 2]
 
     # Test DataFrame proxy
     df_copy = proxy.df
