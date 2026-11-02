@@ -1,2 +1,1 @@
 """AIBL ETL adapter package."""
-

@@ -76,6 +76,7 @@ class GBMRiskClassifier:
                 "Neither lightgbm nor sklearn.ensemble.HistGradientBoostingClassifier is available."
             )
 
+    def fit(self, frame: pd.DataFrame, target_col: str = "event") -> GBMRiskClassifier:
     def fit(
         self, frame: pd.DataFrame, target_col: str = "event"
     ) -> GBMRiskClassifier:

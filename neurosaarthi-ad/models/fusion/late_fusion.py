@@ -16,7 +16,9 @@ def weighted_score_fusion(scores: pd.DataFrame, weights: dict[str, float]) -> pd
     if missing:
         raise ValueError(f"Missing score columns: {', '.join(missing)}")
     if any(weight < 0 for weight in weights.values()) or sum(weights.values()) <= 0:
-        raise ValueError("Fusion weights must be non-negative and sum to a positive value")
+        raise ValueError(
+            "Fusion weights must be non-negative and sum to a positive value"
+        )
 
     weight_series = pd.Series(weights, dtype=float)
 
@@ -27,7 +29,7 @@ def weighted_score_fusion(scores: pd.DataFrame, weights: dict[str, float]) -> pd
     else:
         aligned = pd.DataFrame(
             {c: pd.to_numeric(scores[c], errors="coerce") for c in cols},
-            index=scores.index
+            index=scores.index,
         )
 
     available = aligned.notna()

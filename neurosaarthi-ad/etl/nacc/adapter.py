@@ -3,6 +3,7 @@
 Parses NACC UDS (Uniform Data Set) files into the NeuroSaarthi-AD
 common data model. Expected files: NACC investigator CSV.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,32 +15,33 @@ import pandas as pd
 from etl.base import CohortAdapter, CohortTables
 
 _NACC_DX_MAP = {
-    1: 'cognitively_unimpaired',  # Normal
-    2: 'cognitively_unimpaired',  # Impaired not MCI
-    3: 'mci',                     # MCI
-    4: 'dementia',                # Dementia
+    1: "cognitively_unimpaired",  # Normal
+    2: "cognitively_unimpaired",  # Impaired not MCI
+    3: "mci",  # MCI
+    4: "dementia",  # Dementia
 }
+
 
 @dataclass
 class NaccAdapter(CohortAdapter):
-    data_dir: str | Path = 'data/raw/nacc'
-    cohort_name: str = 'NACC'
-    
+    data_dir: str | Path = "data/raw/nacc"
+    cohort_name: str = "NACC"
+
     def extract(self) -> CohortTables:
         root = Path(self.data_dir)
-        uds_path = root / 'investigator_nacc.csv'
-        
+        uds_path = root / "investigator_nacc.csv"
+
         raw = self._load_csv_or_raise(
             uds_path,
-            f'NACC UDS data not found at {uds_path}. Please place the standard NACC investigator file here.',
-            low_memory=False
+            f"NACC UDS data not found at {uds_path}. Please place the standard NACC investigator file here.",
+            low_memory=False,
         )
-        
+
         participants = self._build_participants(raw)
         visits = self._build_visits(raw)
         features = self._build_features(raw, visits)
         outcomes = self._build_outcomes(raw, visits)
-        
+
         return CohortTables(
             participants=participants,
             visits=visits,
@@ -48,75 +50,108 @@ class NaccAdapter(CohortAdapter):
         )
 
     def _build_participants(self, raw: pd.DataFrame) -> pd.DataFrame:
-        baseline = raw.drop_duplicates('NACCID', keep='first').copy()
-        sex_map = {1: 'Male', 2: 'Female'}
-        
-        return pd.DataFrame({
-            'participant_id': 'NACC-' + baseline['NACCID'].astype(str),
-            'cohort': self.cohort_name,
-            'sex': baseline.get('SEX', pd.Series(dtype=float)).map(sex_map).fillna('Unknown'),
-            'birth_year': baseline.get('BIRTHYR', pd.Series(dtype='Int64')).astype('Int64'),
-            'education_years': pd.to_numeric(baseline.get('EDUC', np.nan), errors='coerce').fillna(0),
-            'language': 'cohort_recorded',
-            'urban_rural': 'reference',
-        })
+        baseline = raw.drop_duplicates("NACCID", keep="first").copy()
+        sex_map = {1: "Male", 2: "Female"}
+
+        return pd.DataFrame(
+            {
+                "participant_id": "NACC-" + baseline["NACCID"].astype(str),
+                "cohort": self.cohort_name,
+                "sex": baseline.get("SEX", pd.Series(dtype=float))
+                .map(sex_map)
+                .fillna("Unknown"),
+                "birth_year": baseline.get("BIRTHYR", pd.Series(dtype="Int64")).astype(
+                    "Int64"
+                ),
+                "education_years": pd.to_numeric(
+                    baseline.get("EDUC", np.nan), errors="coerce"
+                ).fillna(0),
+                "language": "cohort_recorded",
+                "urban_rural": "reference",
+            }
+        )
 
     def _build_visits(self, raw: pd.DataFrame) -> pd.DataFrame:
         raw = raw.copy()
-        raw['participant_id'] = 'NACC-' + raw['NACCID'].astype(str)
-        raw['visit_index'] = pd.to_numeric(raw.get('VISITNUM', 0), errors='coerce').fillna(0).astype(int)
-        
+        raw["participant_id"] = "NACC-" + raw["NACCID"].astype(str)
+        raw["visit_index"] = (
+            pd.to_numeric(raw.get("VISITNUM", 0), errors="coerce").fillna(0).astype(int)
+        )
+
         # Dates
-        if all(col in raw.columns for col in ['VISITYR', 'VISITMO', 'VISITDAY']):
-            raw['exam_date'] = pd.to_datetime(
-                raw[['VISITYR', 'VISITMO', 'VISITDAY']].rename(
-                    columns={'VISITYR': 'year', 'VISITMO': 'month', 'VISITDAY': 'day'}
-                ), errors='coerce'
+        if all(col in raw.columns for col in ["VISITYR", "VISITMO", "VISITDAY"]):
+            raw["exam_date"] = pd.to_datetime(
+                raw[["VISITYR", "VISITMO", "VISITDAY"]].rename(
+                    columns={"VISITYR": "year", "VISITMO": "month", "VISITDAY": "day"}
+                ),
+                errors="coerce",
             )
         else:
-            raw['exam_date'] = pd.NaT
-            
-        baseline_dates = raw.groupby('participant_id')['exam_date'].transform('min')
-        raw['baseline_days'] = (raw['exam_date'] - baseline_dates).dt.days.fillna(0).astype(int)
-        
-        raw['diagnosis'] = raw.get('NACCUDSD', pd.Series(dtype=float)).map(_NACC_DX_MAP).fillna('unknown')
-        raw['cdr_global'] = pd.to_numeric(raw.get('CDRGLOB', np.nan), errors='coerce').fillna(0.0) / 3.0
-        
-        visits = pd.DataFrame({
-            'visit_id': raw['participant_id'] + '-V' + raw['visit_index'].astype(str),
-            'participant_id': raw['participant_id'],
-            'cohort': self.cohort_name,
-            'visit_index': raw['visit_index'],
-            'age_at_visit': pd.to_numeric(raw.get('NACCAGE', 70.0), errors='coerce'),
-            'visit_date': raw['exam_date'],
-            'baseline_days': raw['baseline_days'],
-            'diagnosis': raw['diagnosis'],
-            'cdr_global': raw['cdr_global'],
-            'cognitive_status': raw['diagnosis'],
-        })
-        return visits.sort_values(['participant_id', 'visit_index']).reset_index(drop=True)
+            raw["exam_date"] = pd.NaT
+
+        baseline_dates = raw.groupby("participant_id")["exam_date"].transform("min")
+        raw["baseline_days"] = (
+            (raw["exam_date"] - baseline_dates).dt.days.fillna(0).astype(int)
+        )
+
+        raw["diagnosis"] = (
+            raw.get("NACCUDSD", pd.Series(dtype=float))
+            .map(_NACC_DX_MAP)
+            .fillna("unknown")
+        )
+        raw["cdr_global"] = (
+            pd.to_numeric(raw.get("CDRGLOB", np.nan), errors="coerce").fillna(0.0) / 3.0
+        )
+
+        visits = pd.DataFrame(
+            {
+                "visit_id": raw["participant_id"]
+                + "-V"
+                + raw["visit_index"].astype(str),
+                "participant_id": raw["participant_id"],
+                "cohort": self.cohort_name,
+                "visit_index": raw["visit_index"],
+                "age_at_visit": pd.to_numeric(
+                    raw.get("NACCAGE", 70.0), errors="coerce"
+                ),
+                "visit_date": raw["exam_date"],
+                "baseline_days": raw["baseline_days"],
+                "diagnosis": raw["diagnosis"],
+                "cdr_global": raw["cdr_global"],
+                "cognitive_status": raw["diagnosis"],
+            }
+        )
+        return visits.sort_values(["participant_id", "visit_index"]).reset_index(
+            drop=True
+        )
 
     def _build_features(self, raw: pd.DataFrame, visits: pd.DataFrame) -> pd.DataFrame:
         raw = raw.copy()
-        raw['participant_id'] = 'NACC-' + raw['NACCID'].astype(str)
-        raw['visit_index'] = pd.to_numeric(raw.get('VISITNUM', 0), errors='coerce').fillna(0).astype(int)
-        raw['visit_id'] = raw['participant_id'] + '-V' + raw['visit_index'].astype(str)
-        
+        raw["participant_id"] = "NACC-" + raw["NACCID"].astype(str)
+        raw["visit_index"] = (
+            pd.to_numeric(raw.get("VISITNUM", 0), errors="coerce").fillna(0).astype(int)
+        )
+        raw["visit_id"] = raw["participant_id"] + "-V" + raw["visit_index"].astype(str)
+
         # NACCAPOE mapping to E4 count
         apoe_map = {1: 0, 2: 1, 3: 2, 4: 0, 5: 1, 6: 0}
-        if 'NACCAPOE' in raw.columns:
-            raw['apoe_e4_count'] = pd.to_numeric(raw['NACCAPOE'], errors='coerce').map(apoe_map)
-        
+        if "NACCAPOE" in raw.columns:
+            raw["apoe_e4_count"] = pd.to_numeric(raw["NACCAPOE"], errors="coerce").map(
+                apoe_map
+            )
+
         feature_map = {
-            'NACCMMSE': ('cognition', 'cognitive_score', 'points'),
-            'MOCATOTS': ('cognition', 'moca_score', 'points'),
-            'apoe_e4_count': ('genomics', 'apoe_e4_count', 'alleles'),
+            "NACCMMSE": ("cognition", "cognitive_score", "points"),
+            "MOCATOTS": ("cognition", "moca_score", "points"),
+            "apoe_e4_count": ("genomics", "apoe_e4_count", "alleles"),
         }
-        
+
         # ⚡ Bolt: Vectorized feature extraction replaces slow .iterrows() loop, resulting in ~7x speedup.
         # We track `_row_idx` and `_feat_idx` to preserve the original insertion order before sorting.
         dfs = []
-        for feat_idx, (source_col, (modality, feature_name, unit)) in enumerate(feature_map.items()):
+        for feat_idx, (source_col, (modality, feature_name, unit)) in enumerate(
+            feature_map.items()
+        ):
             if source_col not in raw.columns:
                 continue
 
@@ -124,31 +159,44 @@ class NaccAdapter(CohortAdapter):
             if valid.empty:
                 continue
 
-            df = pd.DataFrame({
-                'feature_row_id': valid['visit_id'] + '-' + feature_name,
-                'participant_id': valid['participant_id'],
-                'visit_id': valid['visit_id'],
-                'cohort': self.cohort_name,
-                'modality': modality,
-                'feature_name': feature_name,
-                'value': valid[source_col].astype(float),
-                'unit': unit,
-                'source_variable': source_col,
-                'qc_flag': 'pass',
-                'derived': False,
-                '_row_idx': valid.index,
-                '_feat_idx': feat_idx
-            })
+            df = pd.DataFrame(
+                {
+                    "feature_row_id": valid["visit_id"] + "-" + feature_name,
+                    "participant_id": valid["participant_id"],
+                    "visit_id": valid["visit_id"],
+                    "cohort": self.cohort_name,
+                    "modality": modality,
+                    "feature_name": feature_name,
+                    "value": valid[source_col].astype(float),
+                    "unit": unit,
+                    "source_variable": source_col,
+                    "qc_flag": "pass",
+                    "derived": False,
+                    "_row_idx": valid.index,
+                    "_feat_idx": feat_idx,
+                }
+            )
             dfs.append(df)
 
         if not dfs:
-            return pd.DataFrame(columns=[
-                'feature_row_id', 'participant_id', 'visit_id', 'cohort',
-                'modality', 'feature_name', 'value', 'unit', 'source_variable',
-                'qc_flag', 'derived'
-            ])
+            return pd.DataFrame(
+                columns=[
+                    "feature_row_id",
+                    "participant_id",
+                    "visit_id",
+                    "cohort",
+                    "modality",
+                    "feature_name",
+                    "value",
+                    "unit",
+                    "source_variable",
+                    "qc_flag",
+                    "derived",
+                ]
+            )
 
         res = pd.concat(dfs, ignore_index=True)
-        res = res.sort_values(['_row_idx', '_feat_idx']).drop(columns=['_row_idx', '_feat_idx'])
-        return res.sort_values(['participant_id', 'visit_id']).reset_index(drop=True)
-
+        res = res.sort_values(["_row_idx", "_feat_idx"]).drop(
+            columns=["_row_idx", "_feat_idx"]
+        )
+        return res.sort_values(["participant_id", "visit_id"]).reset_index(drop=True)

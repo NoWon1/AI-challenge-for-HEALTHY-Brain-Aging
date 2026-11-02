@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import re
 
 import altair as alt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -23,6 +24,40 @@ from demo.runtime import (
     profile_with,
 )
 from demo.synthetic import generate_demo_cohort
+
+
+class ImmutableRuntimeProxy:
+    """
+    Read-only proxy wrapping DemoRuntime to prevent cross-session state corruption
+    when cached via @st.cache_resource (CWE-374 / CWE-662).
+    """
+
+    def __init__(self, target: Any) -> None:
+        super().__setattr__("_target", target)
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._target, name)
+        # Protect internal dictionary lookups from in-place modification
+        if isinstance(attr, dict):
+            return MappingProxyType(attr)
+        if isinstance(attr, pd.DataFrame):
+            return attr.copy(deep=True)
+        if isinstance(attr, list):
+            return tuple(attr)
+        if isinstance(attr, set):
+            return frozenset(attr)
+        return attr
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise AttributeError(
+            f"Modification of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
+        )
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError(
+            f"Deletion of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
+        )
+
 
 COLORS = {
     "teal": "#0F5C5B",
@@ -85,12 +120,21 @@ def _secure_value(val):
         return ImmutableDictProxy(val)
     if isinstance(val, list):
         return ImmutableListProxy(val)
+    if isinstance(val, tuple):
+        return tuple(_secure_value(x) for x in val)
     if isinstance(val, set):
         return ImmutableSetProxy(val)
     if isinstance(val, tuple):
         return ImmutableTupleProxy(val)
+        if hasattr(type(val), "_fields"):
+            return type(val)(*(_secure_value(x) for x in val))
+        return tuple(_secure_value(x) for x in val)
     if isinstance(val, pd.DataFrame):
         return val.copy(deep=True)
+    if isinstance(val, np.ndarray):
+        val_copy = val.copy()
+        val_copy.flags.writeable = False
+        return val_copy
     return val
 
 
@@ -181,7 +225,25 @@ class ImmutableRuntimeProxy:
         object.__setattr__(self, "_obj", obj)
 
     def __getattr__(self, name):
+        def _freeze_value(val):
+            if isinstance(val, dict):
+                return types.MappingProxyType(
+                    {k: _freeze_value(v) for k, v in val.items()}
+                )
+            if isinstance(val, list):
+                return tuple(_freeze_value(x) for x in val)
+            if isinstance(val, set):
+                return frozenset(_freeze_value(x) for x in val)
+            if isinstance(val, tuple):
+                if hasattr(val, "_fields"):  # namedtuple
+                    return type(val)(*(_freeze_value(x) for x in val))
+                return tuple(_freeze_value(x) for x in val)
+            if isinstance(val, pd.DataFrame):
+                return val.copy(deep=True)
+            return val
+
         val = getattr(self._obj, name)
+        return _freeze_value(val)
         return _secure_value(val)
 
     def __setattr__(self, name, value):

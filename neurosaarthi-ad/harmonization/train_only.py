@@ -33,4 +33,3 @@ class TrainOnlyStandardizer:
 
     def fit_transform(self, frame: pd.DataFrame) -> pd.DataFrame:
         return self.fit(frame).transform(frame)
-
