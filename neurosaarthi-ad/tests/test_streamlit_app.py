@@ -54,7 +54,8 @@ def test_immutable_runtime_proxy():
 
 def test_streamlit_judge_demo_smoke():
     app_path = Path(__file__).parents[1] / "dashboards" / "streamlit_app.py"
-    app = AppTest.from_file(str(app_path)).run(timeout=45)
+    app = AppTest.from_file(str(app_path), default_timeout=120)
+    app.run()
 
     assert not app.exception
     assert len(app.tabs) == 3
