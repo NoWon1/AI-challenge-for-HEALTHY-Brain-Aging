@@ -30,3 +30,8 @@
 **Vulnerability:** The Streamlit app configuration (`.streamlit/config.toml`) used the deprecated boolean value `showErrorDetails = false`, which causes tracebacks and internal stack traces to leak to the client on unhandled exceptions.
 **Learning:** For `showErrorDetails`, using `false` is deprecated and doesn't fully suppress error details in newer Streamlit versions. The proper way to suppress tracebacks is to place `showErrorDetails = "none"` strictly under the `[client]` section.
 **Prevention:** Always configure `showErrorDetails = "none"` under `[client]` in `.streamlit/config.toml` for production Streamlit deployments to prevent information leakage (CWE-200).
+
+## 2026-11-03 - Prevented Cross-Session State Corruption in Streamlit Cache (CWE-374 / CWE-662)
+**Vulnerability:** The `ImmutableRuntimeProxy` in `dashboards/streamlit_app.py` previously only secured top-level mappings, allowing in-place mutations of nested lists, sets, DataFrames, and arrays.
+**Learning:** `ImmutableRuntimeProxy` only secured top-level mappings, allowing in-place mutations of nested lists, sets, DataFrames, and arrays. This leads to cross-session state corruption.
+**Prevention:** Implemented recursive securing via `_secure_value`, converting mutable sequences/sets into immutable counterparts and enforcing deep copies or read-only flags on tabular/array data. Always enforce deep immutability across global or session-shared caching boundaries.

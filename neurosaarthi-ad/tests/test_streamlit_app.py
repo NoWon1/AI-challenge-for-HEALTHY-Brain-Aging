@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -17,6 +18,7 @@ class DummyTarget:
 
         self.lst = [1, 2, 3]
         self.df = pd.DataFrame({"col": [1]})
+        self.arr = np.array([1, 2, 3])
 
 
 def test_immutable_runtime_proxy():
@@ -45,6 +47,16 @@ def test_immutable_runtime_proxy():
 
     # Test list tuple proxy
     assert proxy.lst == (1, 2, 3)
+
+    # Test list tuple proxy edge cases
+    with pytest.raises(AttributeError):
+        proxy.my_list.append(4)
+
+    # Test numpy array proxy
+    arr_copy = proxy.arr
+    assert not arr_copy.flags.writeable
+    with pytest.raises(ValueError, match="is read-only"):
+        arr_copy[0] = 99
 
     # Test DataFrame proxy
     df_copy = proxy.df
