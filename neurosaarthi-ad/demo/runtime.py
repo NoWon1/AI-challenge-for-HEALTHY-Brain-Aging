@@ -246,7 +246,6 @@ class _LegacyDiscreteTimeRiskEnsemble:
             interval_rows.append(eligible)
         return pd.concat(interval_rows, ignore_index=True)
 
-    def fit(self, frame: pd.DataFrame) -> DiscreteTimeRiskEnsemble:
     def fit(self, frame: pd.DataFrame) -> _LegacyDiscreteTimeRiskEnsemble:
         available = frame[self.feature_columns].notna().any(axis=1)
         training = frame.loc[available].reset_index(drop=True)
@@ -852,12 +851,6 @@ class DemoRuntime:
             ["participant_id", "visit_index"]
         )
         # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop
-        visits_monotonic = bool(
-            visits.groupby("participant_id", sort=False)["baseline_days"]
-            .diff()
-            .fillna(0)
-            .ge(0)
-            .all()
         # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop and slow .groupby() overhead
         pids = visits["participant_id"].to_numpy()
         days = visits["baseline_days"].to_numpy()
