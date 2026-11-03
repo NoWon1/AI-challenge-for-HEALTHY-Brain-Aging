@@ -55,12 +55,6 @@ class GradientBoostingSurvivalModel:
         if missing_cols:
             raise ValueError(f"Missing feature columns in data: {missing_cols}")
 
-    def fit(
-        self,
-        frame: pd.DataFrame,
-        time_col: str = "event_time_days",
-        event_col: str = "event",
-    ) -> GradientBoostingSurvivalModel:
     def fit(self, frame: pd.DataFrame, time_col: str = "event_time_days", event_col: str = "event") -> GradientBoostingSurvivalModel:
         """Fit the model to survival data."""
         self._validate_data(frame, is_fit=True)
