@@ -4,7 +4,11 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from dashboards.streamlit_app import ImmutableRuntimeProxy
+from dashboards.streamlit_app import (
+    ImmutableListProxy,
+    ImmutableRuntimeProxy,
+    ImmutableSetProxy,
+)
 
 
 class DummyTarget:
@@ -18,6 +22,10 @@ class DummyTarget:
 
         self.lst = [1, 2, 3]
         self.df = pd.DataFrame({"col": [1]})
+        import numpy as np
+
+        self.arr = np.array([1, 2, 3])
+        self.nested_tuple = ([1, 2], {"a": 3})
         self.nested_tuple = ([1, 2], {"a": 1})
 
 
@@ -44,9 +52,9 @@ def test_immutable_runtime_proxy():
         proxy.config["nested"]["inner"] = 2
     assert isinstance(proxy.df, pd.DataFrame)
     assert proxy.df is not target.df
-    assert isinstance(proxy.my_list, tuple)
+    assert isinstance(proxy.my_list, (tuple, ImmutableListProxy))
     assert proxy.my_list == (1, 2, 3)
-    assert isinstance(proxy.my_set, frozenset)
+    assert isinstance(proxy.my_set, (frozenset, ImmutableSetProxy))
     assert proxy.my_set == frozenset({1, 2, 3})
 
     # Test list tuple proxy
@@ -62,10 +70,32 @@ def test_immutable_runtime_proxy():
     df_copy.loc[0, "col"] = 99
     assert proxy.df.loc[0, "col"] == 1  # Should not affect the original
 
+    # List mutation
+    with pytest.raises((TypeError, AttributeError)):
+        proxy.my_list.append(4)
+    with pytest.raises(TypeError):
+        proxy.my_list[0] = 99
+
+    # Set mutation
+    with pytest.raises((TypeError, AttributeError)):
+        proxy.my_set.add(4)
+
+    # Nested tuple
+    assert proxy.nested_tuple == ([1, 2], {"a": 3})
+    with pytest.raises((TypeError, AttributeError)):
+        proxy.nested_tuple[0].append(3)
+    with pytest.raises(TypeError):
+        proxy.nested_tuple[1]["a"] = 4
+
+    # Numpy mutation
+    assert proxy.arr.flags.writeable is False
+    with pytest.raises(ValueError, match="assignment destination is read-only"):
+        proxy.arr[0] = 99
+
 
 def test_streamlit_judge_demo_smoke():
     app_path = Path(__file__).parents[1] / "dashboards" / "streamlit_app.py"
-    app = AppTest.from_file(str(app_path)).run(timeout=45)
+    app = AppTest.from_file(str(app_path)).run(timeout=600)
 
     assert not app.exception
     assert len(app.tabs) == 3

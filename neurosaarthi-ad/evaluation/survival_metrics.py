@@ -26,10 +26,20 @@ except ImportError:
     HAS_LIFELINES = False
 
 
-def _numpy_cindex(event_times: np.ndarray, events: np.ndarray, risk_scores: np.ndarray, chunk_size: int = 2000) -> float:
-    """Pure numpy fallback for Harrell's C-index with memory-efficient chunking."""
 def _numpy_cindex(
-    event_times: np.ndarray, events: np.ndarray, risk_scores: np.ndarray
+    event_times: np.ndarray,
+    events: np.ndarray,
+    risk_scores: np.ndarray,
+    chunk_size: int = 2000,
+) -> float:
+    """Pure numpy fallback for Harrell's C-index with memory-efficient chunking."""
+
+
+def _numpy_cindex(
+    event_times: np.ndarray,
+    events: np.ndarray,
+    risk_scores: np.ndarray,
+    chunk_size: int = 2000,
 ) -> float:
     """Pure numpy fallback for Harrell's C-index."""
     event_times = np.asarray(event_times)
