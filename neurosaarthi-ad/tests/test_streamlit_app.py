@@ -14,6 +14,7 @@ from dashboards.streamlit_app import (
 class DummyTarget:
     def __init__(self):
         self.value = 42
+        self.config = {"key": "value", "nested": {"inner": 1}}
         self.config = {"key": "value"}
         self.df = pd.DataFrame({"a": [1, 2]})
         self.my_list = [1, 2, 3]
@@ -25,6 +26,8 @@ class DummyTarget:
 
         self.arr = np.array([1, 2, 3])
         self.nested_tuple = ([1, 2], {"a": 3})
+        self.nested_tuple = ([1, 2], {"a": 1})
+
 
 
 def test_immutable_runtime_proxy():
@@ -44,6 +47,9 @@ def test_immutable_runtime_proxy():
     with pytest.raises(TypeError):
         proxy.config["key"] = "new_value"
 
+    # Test nested dictionary proxy
+    with pytest.raises(TypeError):
+        proxy.config["nested"]["inner"] = 2
     assert isinstance(proxy.df, pd.DataFrame)
     assert proxy.df is not target.df
     assert isinstance(proxy.my_list, (tuple, ImmutableListProxy))
@@ -53,6 +59,11 @@ def test_immutable_runtime_proxy():
 
     # Test list tuple proxy
     assert proxy.lst == (1, 2, 3)
+
+    # Test nested tuple proxy
+    with pytest.raises(TypeError):
+        proxy.nested_tuple[1]["a"] = 2
+    assert proxy.nested_tuple[0] == [1, 2]
 
     # Test DataFrame proxy
     df_copy = proxy.df
