@@ -41,7 +41,7 @@ def _numpy_cindex(
     risk_scores: np.ndarray,
     chunk_size: int = 2000,
 ) -> float:
-    """Pure numpy fallback for Harrell's C-index."""
+    """Pure numpy fallback for Harrell's C-index with memory-efficient chunking."""
     event_times = np.asarray(event_times)
     events = np.asarray(events, dtype=bool)
     risk_scores = np.asarray(risk_scores)

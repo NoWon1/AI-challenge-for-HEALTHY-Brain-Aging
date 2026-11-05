@@ -16,6 +16,9 @@ except ImportError:
     shap = None
     HAS_SHAP = False
 
+import importlib.util
+
+HAS_SKLEARN = importlib.util.find_spec("sklearn") is not None
 try:
     import importlib.util
 
