@@ -246,6 +246,8 @@ class _LegacyDiscreteTimeRiskEnsemble:
             interval_rows.append(eligible)
         return pd.concat(interval_rows, ignore_index=True)
 
+    def fit(self, frame: pd.DataFrame) -> DiscreteTimeRiskEnsemble:
+
     def fit(self, frame: pd.DataFrame) -> _LegacyDiscreteTimeRiskEnsemble:
         available = frame[self.feature_columns].notna().any(axis=1)
         training = frame.loc[available].reset_index(drop=True)

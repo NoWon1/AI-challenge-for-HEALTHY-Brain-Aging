@@ -149,6 +149,26 @@ class ImmutableRuntimeProxy:
 
     def __getattr__(self, name: str) -> object:
         attr = getattr(self._target, name)
+        return self._secure_value(attr)
+
+    def _secure_value(self, val: Any) -> Any:
+        if isinstance(val, dict):
+            return MappingProxyType({k: self._secure_value(v) for k, v in val.items()})
+        if isinstance(val, pd.DataFrame):
+            return val.copy(deep=True)
+        if isinstance(val, list):
+            return tuple(self._secure_value(x) for x in val)
+        if isinstance(val, set):
+            return frozenset(self._secure_value(x) for x in val)
+        if isinstance(val, tuple):
+            if hasattr(type(val), "_fields"):
+                return type(val)(*(self._secure_value(x) for x in val))
+            return tuple(self._secure_value(x) for x in val)
+        if isinstance(val, np.ndarray):
+            view = val.view()
+            view.flags.writeable = False
+            return view
+        return val
         return _secure_value(attr)
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -168,7 +188,6 @@ class ImmutableRuntimeProxy:
 
     def __setitem__(self, key: object, value: object):
         raise TypeError(f"Cannot mutate immutable proxy item '{key}'")
-
 
 COLORS = {
     "teal": "#0F5C5B",
