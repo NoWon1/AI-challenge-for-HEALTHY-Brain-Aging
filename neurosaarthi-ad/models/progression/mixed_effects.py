@@ -56,6 +56,37 @@ class MixedEffectsTrajectory:
                     "Neither statsmodels nor sklearn is available for fallback."
                 )
 
+            # ⚡ Bolt: Fast-path vectorization. Sort dataframe and extract numpy arrays to
+            # replace slow O(N) Pandas groupby loop overhead.
+            # Handle NaN groups and empty frames gracefully like pandas does
+            valid_frame = frame.dropna(subset=[self.group_col])
+
+            if not valid_frame.empty:
+                sorted_frame = valid_frame.sort_values(self.group_col, kind="mergesort")
+
+                groups = sorted_frame[self.group_col].to_numpy()
+                X_all_sorted = (
+                    sorted_frame[self.feature_columns]
+                    .astype(float)
+                    .fillna(0.0)
+                    .to_numpy()
+                )
+                y_all_sorted = sorted_frame[target_col].astype(float).to_numpy()
+
+                boundaries = np.where(groups[:-1] != groups[1:])[0] + 1
+
+                X_splits = np.split(X_all_sorted, boundaries)
+                y_splits = np.split(y_all_sorted, boundaries)
+                group_names = groups[np.concatenate(([0], boundaries))]
+
+                for name, X_split, y_split in zip(group_names, X_splits, y_splits):
+                    m = Ridge(alpha=1.0).fit(X_split, y_split)
+            for name, group in frame.groupby(self.group_col):
+                X = group[self.feature_columns].astype(float).fillna(0.0)
+                y = group[target_col].astype(float)
+                # simple Ridge fallback
+                m = Ridge(alpha=1.0).fit(X, y)
+                self.models_[name] = m
             # ⚡ Bolt: Vectorized boundary detection avoids slow O(N) Pandas groupby loop overhead
             sorted_frame = frame.sort_values(self.group_col, kind="mergesort")
             groups_arr = sorted_frame[self.group_col].to_numpy()

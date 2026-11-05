@@ -850,6 +850,7 @@ class DemoRuntime:
         visits = self.bundle.tables.visits.sort_values(
             ["participant_id", "visit_index"]
         )
+        # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop
         # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop and slow .groupby() overhead
         pids = visits["participant_id"].to_numpy()
         days = visits["baseline_days"].to_numpy()

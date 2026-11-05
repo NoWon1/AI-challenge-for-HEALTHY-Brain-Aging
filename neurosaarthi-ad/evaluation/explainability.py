@@ -19,6 +19,12 @@ except ImportError:
 import importlib.util
 
 HAS_SKLEARN = importlib.util.find_spec("sklearn") is not None
+try:
+    import importlib.util
+
+    HAS_SKLEARN = importlib.util.find_spec("sklearn") is not None
+except ImportError:
+    HAS_SKLEARN = False
 
 
 @dataclass
