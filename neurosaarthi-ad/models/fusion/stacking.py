@@ -38,6 +38,12 @@ class StackedFusionModel:
             )
 
     def fit(self, base_predictions_dict: dict[str, np.ndarray | pd.Series], y_true: np.ndarray | pd.Series, participant_ids: np.ndarray | pd.Series) -> StackedFusionModel:
+    def fit(
+        self,
+        base_predictions_dict: dict[str, np.ndarray | pd.Series],
+        y_true: np.ndarray | pd.Series,
+        participant_ids: np.ndarray | pd.Series,
+    ) -> StackedFusionModel:
         """Fit the meta-learner on out-of-fold base model predictions.
 
         It is expected that `base_predictions_dict` contains out-of-fold predictions

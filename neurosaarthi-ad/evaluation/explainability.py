@@ -16,10 +16,13 @@ except ImportError:
     shap = None
     HAS_SHAP = False
 
-try:
-    from sklearn.inspection import permutation_importance
+import importlib.util
 
-    HAS_SKLEARN = True
+HAS_SKLEARN = importlib.util.find_spec("sklearn") is not None
+try:
+    import importlib.util
+
+    HAS_SKLEARN = importlib.util.find_spec("sklearn") is not None
 except ImportError:
     HAS_SKLEARN = False
 
@@ -91,7 +94,9 @@ class SHAPExplainer:
                     predict_fn = getattr(
                         self.model, "predict_proba", self.model.predict
                     )
-                    predict_fn = getattr(self.model, "predict_proba", self.model.predict)
+                    predict_fn = getattr(
+                        self.model, "predict_proba", self.model.predict
+                    )
                     # 100 samples as background
                     bg = shap.sample(X, 100) if len(X) > 100 else X
                     self._explainer = shap.KernelExplainer(predict_fn, bg)
