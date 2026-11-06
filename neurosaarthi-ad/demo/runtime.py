@@ -251,6 +251,21 @@ class _LegacyDiscreteTimeRiskEnsemble:
             & (event_times[row_indices] <= interval_ends[year_indices])
         ).astype(int)
         return result.reset_index(drop=True)
+        interval_rows: list[pd.DataFrame] = []
+        for year in range(1, 6):
+            interval_start = (year - 1) * 365.25
+            interval_end = year * 365.25
+            eligible = frame[frame["event_time_days"] > interval_start].copy()
+            if eligible.empty:
+                continue
+            eligible["interval_year"] = float(year)
+            eligible["interval_event"] = (
+                (eligible["event"] == 1) & (eligible["event_time_days"] <= interval_end)
+            ).astype(int)
+            interval_rows.append(eligible)
+        return pd.concat(interval_rows, ignore_index=True)
+
+    def fit(self, frame: pd.DataFrame) -> DiscreteTimeRiskEnsemble:
 
     def fit(self, frame: pd.DataFrame) -> _LegacyDiscreteTimeRiskEnsemble:
         available = frame[self.feature_columns].notna().any(axis=1)
@@ -862,6 +877,7 @@ class DemoRuntime:
         visits = self.bundle.tables.visits.sort_values(
             ["participant_id", "visit_index"]
         )
+        # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop
         # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop and slow .groupby() overhead
         pids = visits["participant_id"].to_numpy()
         days = visits["baseline_days"].to_numpy()
