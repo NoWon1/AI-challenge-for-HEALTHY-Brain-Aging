@@ -259,15 +259,12 @@ def _secure_value(val):
         return ImmutableDictProxy(val)
     if isinstance(val, list):
         return ImmutableListProxy(val)
-    if isinstance(val, tuple):
-        return tuple(_secure_value(x) for x in val)
     if isinstance(val, set):
         return ImmutableSetProxy(val)
     if isinstance(val, tuple):
-        return ImmutableTupleProxy(val)
         if hasattr(type(val), "_fields"):
             return type(val)(*(_secure_value(x) for x in val))
-        return tuple(_secure_value(x) for x in val)
+        return ImmutableTupleProxy(val)
     if isinstance(val, pd.DataFrame):
         return val.copy(deep=True)
     if isinstance(val, np.ndarray):
@@ -372,25 +369,8 @@ class ImmutableSetProxy(AbstractSet):
     if isinstance(val, (pd.DataFrame, pd.Series)):
         return val.copy(deep=True)
     def __getattr__(self, name):
-        def _freeze_value(val):
-            if isinstance(val, dict):
-                return types.MappingProxyType(
-                    {k: _freeze_value(v) for k, v in val.items()}
-                )
-            if isinstance(val, list):
-                return tuple(_freeze_value(x) for x in val)
-            if isinstance(val, set):
-                return frozenset(_freeze_value(x) for x in val)
-            if isinstance(val, tuple):
-                if hasattr(val, "_fields"):  # namedtuple
-                    return type(val)(*(_freeze_value(x) for x in val))
-                return tuple(_freeze_value(x) for x in val)
-            if isinstance(val, pd.DataFrame):
-                return val.copy(deep=True)
-            return val
-
         val = getattr(self._obj, name)
-        return _freeze_value(val)
+        return _secure_value(val)
         return _secure_value(val)
 
     # NumPy arrays: set read-only flag

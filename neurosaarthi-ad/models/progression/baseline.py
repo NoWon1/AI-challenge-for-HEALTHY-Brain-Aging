@@ -31,6 +31,7 @@ class CognitiveTrajectoryRegressor:
                 ]
             )
 
+    def fit(self, frame: pd.DataFrame, target_col: str = "future_score") -> CognitiveTrajectoryRegressor:
     def fit(
         self, frame: pd.DataFrame, target_col: str = "future_score"
     ) -> CognitiveTrajectoryRegressor:

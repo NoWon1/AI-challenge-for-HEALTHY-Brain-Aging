@@ -16,7 +16,6 @@ class DummyTarget:
     def __init__(self):
         self.value = 42
         self.config = {"key": "value", "nested": {"inner": 1}}
-        self.config = {"key": "value"}
         self.df = pd.DataFrame({"a": [1, 2]})
         self.my_list = [1, 2, 3]
         self.my_set = {1, 2, 3}
@@ -54,6 +53,9 @@ def test_immutable_runtime_proxy():
         proxy.config["nested"]["inner"] = 2
     assert isinstance(proxy.df, pd.DataFrame)
     assert proxy.df is not target.df
+    assert isinstance(proxy.my_list, tuple) or hasattr(proxy.my_list, "__getitem__")
+    assert proxy.my_list == (1, 2, 3)
+    assert isinstance(proxy.my_set, frozenset) or hasattr(proxy.my_set, "__contains__")
     assert isinstance(proxy.my_list, (tuple, ImmutableListProxy))
     assert proxy.my_list == (1, 2, 3)
     assert isinstance(proxy.my_set, (frozenset, ImmutableSetProxy))
