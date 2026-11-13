@@ -232,6 +232,25 @@ class _LegacyDiscreteTimeRiskEnsemble:
         self.models: list[Pipeline] = []
 
     def _interval_frame(self, frame: pd.DataFrame) -> pd.DataFrame:
+        # ⚡ Bolt: Vectorized NumPy array slicing avoids slow O(N) looping and appending with pd.concat
+        event_times = frame["event_time_days"].to_numpy()
+        events = frame["event"].to_numpy()
+        years = np.arange(1, 6)
+        interval_starts = (years - 1) * 365.25
+        interval_ends = years * 365.25
+        valid_mask = event_times[None, :] > interval_starts[:, None]
+        year_indices, row_indices = np.where(valid_mask)
+        if len(row_indices) == 0:
+            return pd.DataFrame(
+                columns=list(frame.columns) + ["interval_year", "interval_event"]
+            )
+        result = frame.iloc[row_indices].copy()
+        result["interval_year"] = years[year_indices].astype(float)
+        result["interval_event"] = (
+            (events[row_indices] == 1)
+            & (event_times[row_indices] <= interval_ends[year_indices])
+        ).astype(int)
+        return result.reset_index(drop=True)
         interval_rows: list[pd.DataFrame] = []
         for year in range(1, 6):
             interval_start = (year - 1) * 365.25
@@ -245,6 +264,8 @@ class _LegacyDiscreteTimeRiskEnsemble:
             ).astype(int)
             interval_rows.append(eligible)
         return pd.concat(interval_rows, ignore_index=True)
+
+    def fit(self, frame: pd.DataFrame) -> DiscreteTimeRiskEnsemble:
 
     def fit(self, frame: pd.DataFrame) -> _LegacyDiscreteTimeRiskEnsemble:
         available = frame[self.feature_columns].notna().any(axis=1)
@@ -317,19 +338,25 @@ class GBMDiscreteTimeRiskEnsemble:
         self.models = []
 
     def _interval_frame(self, frame):
-        interval_rows: list[pd.DataFrame] = []
-        for year in range(1, 6):
-            interval_start = (year - 1) * 365.25
-            interval_end = year * 365.25
-            eligible = frame[frame["event_time_days"] > interval_start].copy()
-            if eligible.empty:
-                continue
-            eligible["interval_year"] = float(year)
-            eligible["interval_event"] = (
-                (eligible["event"] == 1) & (eligible["event_time_days"] <= interval_end)
-            ).astype(int)
-            interval_rows.append(eligible)
-        return pd.concat(interval_rows, ignore_index=True)
+        # ⚡ Bolt: Vectorized NumPy array slicing avoids slow O(N) looping and appending with pd.concat
+        event_times = frame["event_time_days"].to_numpy()
+        events = frame["event"].to_numpy()
+        years = np.arange(1, 6)
+        interval_starts = (years - 1) * 365.25
+        interval_ends = years * 365.25
+        valid_mask = event_times[None, :] > interval_starts[:, None]
+        year_indices, row_indices = np.where(valid_mask)
+        if len(row_indices) == 0:
+            return pd.DataFrame(
+                columns=list(frame.columns) + ["interval_year", "interval_event"]
+            )
+        result = frame.iloc[row_indices].copy()
+        result["interval_year"] = years[year_indices].astype(float)
+        result["interval_event"] = (
+            (events[row_indices] == 1)
+            & (event_times[row_indices] <= interval_ends[year_indices])
+        ).astype(int)
+        return result.reset_index(drop=True)
 
     def fit(self, frame):
         available = frame[self.feature_columns].notna().any(axis=1)
@@ -857,6 +884,13 @@ class DemoRuntime:
             .fillna(0)
             .ge(0)
             .all()
+        # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop and slow .groupby() overhead
+        pids = visits["participant_id"].to_numpy()
+        days = visits["baseline_days"].to_numpy()
+        same_pid = pids[1:] == pids[:-1]
+        diffs = days[1:] - days[:-1]
+        visits_monotonic = (
+            bool(np.all(diffs[same_pid] >= 0)) if len(visits) > 1 else True
         )
         checks = [
             (
@@ -942,6 +976,30 @@ class DemoRuntime:
                 widths.append(
                     float(
                         np.sqrt(self.trajectory_residual_band**2 + (0.35 * disp) ** 2)
+            for year in years[1:]:
+                twin_values = np.array(
+                    [np.interp(year, y, s) for y, s in zip(years_split, scores_split)]
+                )
+                twin_dispersion = (
+                    float(np.std(twin_values)) if len(twin_values) > 1 else 0.0
+                )
+            # ⚡ Bolt: Vectorize multi-point interpolation across all target years to eliminate O(N*M) Python looping overhead
+            twin_values_all = np.array(
+                [np.interp(years[1:], y, s) for y, s in zip(years_split, scores_split)]
+            )
+            twin_dispersions = (
+                np.std(twin_values_all, axis=0)
+                if len(twin_values_all) > 1
+                else np.zeros(len(years) - 1)
+            )
+
+            for twin_dispersion in twin_dispersions:
+                widths.append(
+                    float(
+                        np.sqrt(
+                            self.trajectory_residual_band**2
+                            + (0.35 * twin_dispersion) ** 2
+                        )
                     )
                 )
 

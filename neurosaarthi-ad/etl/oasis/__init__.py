@@ -1,2 +1,1 @@
 """OASIS ETL adapter package."""
-

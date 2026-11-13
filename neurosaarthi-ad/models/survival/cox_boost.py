@@ -10,18 +10,22 @@ import pandas as pd
 
 try:
     from sksurv.ensemble import GradientBoostingSurvivalAnalysis
+
     _HAS_SKSURV = True
 except ImportError:
     _HAS_SKSURV = False
 
 try:
     from lifelines import CoxPHFitter
+
     _HAS_LIFELINES = True
 except ImportError:
     _HAS_LIFELINES = False
 
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
+
+from evaluation.survival_metrics import _numpy_cindex
 
 
 def _to_structured(time: np.ndarray, event: np.ndarray) -> np.ndarray:
@@ -169,7 +173,9 @@ class CoxBoostModel:
             df = pd.DataFrame(X, columns=self.feature_columns)
             partial_hazard = self._model.predict_partial_hazard(df).to_numpy().ravel()
             # Approximate survival via S(t) = S0(t)^exp(risk)
-            baseline_surv = np.exp(-np.searchsorted(self._baseline_times, time_points) * 0.01)
+            baseline_surv = np.exp(
+                -np.searchsorted(self._baseline_times, time_points) * 0.01
+            )
             # ⚡ Bolt: Vectorized NumPy broadcasting replaces slow list comprehension and column_stack
             result = baseline_surv[np.newaxis, :] ** partial_hazard[:, np.newaxis]
             return np.clip(result, 0.0, 1.0)
@@ -177,7 +183,9 @@ class CoxBoostModel:
             probs = self._model.predict_proba(X)[:, 1]
             # Approximate: S(t) ≈ (1-p)^(t/365.25)
             # ⚡ Bolt: Vectorized NumPy broadcasting replaces slow list comprehension and column_stack
-            result = (1.0 - probs[:, np.newaxis]) ** (time_points[np.newaxis, :] / 365.25)
+            result = (1.0 - probs[:, np.newaxis]) ** (
+                time_points[np.newaxis, :] / 365.25
+            )
             return np.clip(result, 0.0, 1.0)
 
     def concordance_index(
@@ -197,24 +205,7 @@ class CoxBoostModel:
             c, *_ = concordance_index_censored(events.astype(bool), times, risk)
             return float(c)
         # Pure-numpy fallback
-        # ⚡ Bolt: Vectorized numpy broadcasting replaces slow O(N^2) explicit python loop
-        events_bool = events.astype(bool)
-        if not np.any(events_bool):
-            return 0.5
-
-        t_i = times[events_bool]
-        r_i = risk[events_bool]
-
-        valid_pairs = t_i[:, None] < times[None, :]
-        permissible = np.sum(valid_pairs)
-
-        if permissible == 0:
-            return 0.0
-
-        concordant = np.sum((r_i[:, None] > risk[None, :]) & valid_pairs)
-        ties = np.sum((r_i[:, None] == risk[None, :]) & valid_pairs)
-
-        return float((concordant + 0.5 * ties) / permissible)
+        return _numpy_cindex(times, events, risk)
 
     @property
     def backend(self) -> str:

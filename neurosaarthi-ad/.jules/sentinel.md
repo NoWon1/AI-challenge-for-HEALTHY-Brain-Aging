@@ -3,7 +3,39 @@
 **Learning:** `unsafe_allow_html=True` acts as a direct injection vector. While the synthetic runtime typically outputs controlled floats, any upstream validation failure or adversarial input modifying these values in a dashboard state could execute arbitrary HTML/JavaScript (CWE-79).
 **Prevention:** Always wrap dynamically interpolated string variables with `html.escape()` before injecting them into HTML templates rendered by `st.markdown(..., unsafe_allow_html=True)`, even if the intended type is numeric.
 
+## 2026-10-21 - Fixed Cross-Session State Corruption in Streamlit Cache (CWE-374 / CWE-662)
+**Vulnerability:** The `ImmutableRuntimeProxy` in `dashboards/streamlit_app.py` previously only secured dictionary structures (`MappingProxyType`) from in-place modifications. Other mutable types accessed from the `@st.cache_resource` target (e.g. lists, sets, and Pandas DataFrames) were unprotected. In a multi-tenant Streamlit application, in-place mutation of these references by one user session directly modifies the global application state for all concurrent users, causing multi-tenant data leakage.
+**Learning:** Returning dictionaries as mapping proxies is insufficient for full immutability. Data structures retrieved from globally cached Singletons must be evaluated recursively or thoroughly across all mutable return boundaries.
+**Prevention:** Cast `list` to `tuple`, `set` to `frozenset`, and explicitly return a defensive copy (`.copy(deep=True)`) for complex mutables like `pd.DataFrame` inside the proxy's `__getattr__` method.
 ## 2024-05-20 - Prevented Cross-Session State Corruption in Streamlit Cache (CWE-374 / CWE-662)
 **Vulnerability:** The `ImmutableRuntimeProxy` for cached objects in `dashboards/streamlit_app.py` previously only protected dictionaries using `types.MappingProxyType`. This allowed lists, sets, and Pandas DataFrames to be modified in-place within the global Streamlit cache by any session.
 **Learning:** Shared mutable state in Streamlit's `@st.cache_resource` leads to severe cross-session contamination (CWE-374) and data leakage between concurrent users, as one user's action could mutate the globally cached Pandas DataFrame or list.
 **Prevention:** Extend defensive proxies to intercept multiple types of mutable sequences/collections. Always return immutable equivalents (like `tuple` or `frozenset`) or a deep copy (`df.copy(deep=True)`) when exposing cached DataFrames or lists to untrusted contexts.
+
+## 2025-02-23 - Prevented Path Traversal in Export Scripts
+**Vulnerability:** The `scripts/export_models.py` script constructed model export paths using unvalidated dynamic inputs (`modality` and `model_name`), leaving it vulnerable to Path Traversal (CWE-22) if untrusted configurations were processed.
+**Learning:** Even internal helper scripts must sanitize dynamically generated file paths (using `Path(name).name`) and perform strict bounds-checking against the intended target directory to prevent adversarial configurations from writing artifacts outside of restricted scopes.
+**Prevention:** Sanitize dynamic filename components by stripping directory parts using `Path(name).name`, and enforce explicit path resolution validation by ensuring the resolved path is within the intended base directory using `path.resolve().is_relative_to(base_dir)`.
+
+## 2025-02-23 - Prevented State Bleed via Tuples in Streamlit Cache (CWE-374)
+**Vulnerability:** The `ImmutableRuntimeProxy` implementation in `dashboards/streamlit_app.py` previously converted tuples via downcasting or failed to protect tuple-subclasses like `collections.namedtuple` and `os.stat_result`, allowing nested mutable objects (e.g. lists inside tuples) to bypass deep immutability protection.
+**Learning:** Shallow immutability structures like tuples in Python still leak underlying mutable state. Re-casting them directly via generators destroys critical properties on custom tuple subclasses (like C-extension structseqs).
+**Prevention:** Always implement lazy wrapping proxies for nested tuple items using `__getattr__` and `__getitem__` interception (like `ImmutableTupleProxy`) to safely present immutable interfaces for cached collections without destroying their underlying metadata/type structures.
+## 2025-02-23 - Prevented State Pollution via Shallow Tuple Immutability (CWE-374)
+**Vulnerability:** The `ImmutableRuntimeProxy` did not recursively traverse and secure elements inside `tuple` objects, allowing mutable nested collections (like dicts/lists inside tuples) to bypass proxy restrictions and enabling cross-session state corruption. Numpy arrays were also exposed.
+**Learning:** A Python `tuple` is only shallowly immutable. While the sequence of references cannot change, the underlying objects it holds remain mutable.
+**Prevention:** Ensure deep immutability proxies explicitly intercept and recursively secure elements within tuples (`tuple(_secure_value(x) for x in val)`). For NumPy arrays, explicitly enforce `flags.writeable = False` on copies exposed to untrusted dashboard contexts.
+## 2025-02-23 - Prevented Cross-Session State Corruption via Shallow Tuples (CWE-374)
+**Vulnerability:** The `ImmutableRuntimeProxy` in `dashboards/streamlit_app.py` did not intercept and recursively secure `tuple` types. Since tuples are only shallowly immutable, nested mutable states could leak and be modified.
+**Learning:** Shallow immutability structures are insufficient for complex cached objects. Furthermore, when deep-securing tuples, it is critical to preserve `namedtuple` schemas (by checking for `_fields` and using `type(val)(...)`) to avoid breaking attribute-based access.
+**Prevention:** Always intercept and recursively secure elements within `tuple` types while preserving `namedtuple` schemas when enforcing deep immutability on Streamlit cached objects.
+
+## 2025-02-23 - Prevented Information Leakage via Streamlit Config (CWE-200)
+**Vulnerability:** The Streamlit app configuration (`.streamlit/config.toml`) used the deprecated boolean value `showErrorDetails = false`, which causes tracebacks and internal stack traces to leak to the client on unhandled exceptions.
+**Learning:** For `showErrorDetails`, using `false` is deprecated and doesn't fully suppress error details in newer Streamlit versions. The proper way to suppress tracebacks is to place `showErrorDetails = "none"` strictly under the `[client]` section.
+**Prevention:** Always configure `showErrorDetails = "none"` under `[client]` in `.streamlit/config.toml` for production Streamlit deployments to prevent information leakage (CWE-200).
+
+## 2026-11-03 - Prevented Cross-Session State Corruption in Streamlit Cache (CWE-374 / CWE-662)
+**Vulnerability:** The `ImmutableRuntimeProxy` in `dashboards/streamlit_app.py` previously only secured top-level mappings, allowing in-place mutations of nested lists, sets, DataFrames, and arrays.
+**Learning:** `ImmutableRuntimeProxy` only secured top-level mappings, allowing in-place mutations of nested lists, sets, DataFrames, and arrays. This leads to cross-session state corruption.
+**Prevention:** Implemented recursive securing via `_secure_value`, converting mutable sequences/sets into immutable counterparts and enforcing deep copies or read-only flags on tabular/array data. Always enforce deep immutability across global or session-shared caching boundaries.

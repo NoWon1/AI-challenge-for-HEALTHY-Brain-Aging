@@ -7,14 +7,22 @@ from demo.synthetic import generate_demo_cohort
 
 @pytest.fixture(scope="module")
 def runtime():
-    return build_demo_runtime(generate_demo_cohort(seed=9, n_per_cohort=36), n_bootstrap=3, seed=9)
+    return build_demo_runtime(
+        generate_demo_cohort(seed=9, n_per_cohort=36), n_bootstrap=3, seed=9
+    )
 
 
 def test_global_tlsa_and_sanscog_roles_are_isolated(runtime):
     assert set(runtime.train["role"]) == {"global_train", "tlsa_adaptation"}
     assert "SANSCOG" not in set(runtime.train["cohort"])
-    assert set(runtime.baseline.loc[runtime.baseline["role"] == "external_validation", "cohort"]) == {"SANSCOG"}
-    assert set(runtime.train["participant_id"]).isdisjoint(set(runtime.validation["participant_id"]))
+    assert set(
+        runtime.baseline.loc[
+            runtime.baseline["role"] == "external_validation", "cohort"
+        ]
+    ) == {"SANSCOG"}
+    assert set(runtime.train["participant_id"]).isdisjoint(
+        set(runtime.validation["participant_id"])
+    )
 
 
 def test_prediction_is_monotonic_bounded_and_returns_twins(runtime):
@@ -56,7 +64,9 @@ def test_missing_modalities_are_renormalised_instead_of_failing(runtime):
     assert forecast.risks["risk"].notna().all()
     assert forecast.available_modalities == ("Cognition + clinical",)
     assert any("renormalised" in warning for warning in forecast.warnings)
-    assert any("Limited multimodal coverage" in warning for warning in forecast.warnings)
+    assert any(
+        "Limited multimodal coverage" in warning for warning in forecast.warnings
+    )
 
 
 def test_validation_outputs_are_prediction_derived(runtime):
