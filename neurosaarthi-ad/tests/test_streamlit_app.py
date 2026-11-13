@@ -71,6 +71,9 @@ def test_immutable_runtime_proxy():
         proxy.config["nested"]["inner"] = 2
     assert isinstance(proxy.df, pd.DataFrame)
     assert proxy.df is not target.df
+    assert not isinstance(proxy.my_list, tuple)
+    assert proxy.my_list == (1, 2, 3)
+    assert not isinstance(proxy.my_set, frozenset)
     assert isinstance(proxy.my_list, tuple) or hasattr(proxy.my_list, "__getitem__")
     assert proxy.my_list == (1, 2, 3)
     assert isinstance(proxy.my_set, frozenset) or hasattr(proxy.my_set, "__contains__")
@@ -126,6 +129,7 @@ def test_immutable_runtime_proxy():
 
 def test_streamlit_judge_demo_smoke():
     app_path = Path(__file__).parents[1] / "dashboards" / "streamlit_app.py"
+    app = AppTest.from_file(str(app_path)).run(timeout=180)
     app = AppTest.from_file(str(app_path), default_timeout=120)
     app.run()
     app = AppTest.from_file(str(app_path)).run(timeout=600)

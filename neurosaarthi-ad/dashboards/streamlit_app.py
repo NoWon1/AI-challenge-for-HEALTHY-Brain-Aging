@@ -139,6 +139,7 @@ def _secure_value(val: object) -> object:
     return val
 
 
+
 class ImmutableRuntimeProxy:
     """
     Proxy wrapping cached runtime resources to enforce CWE-374 protection.
@@ -268,9 +269,9 @@ def _secure_value(val):
     if isinstance(val, pd.DataFrame):
         return val.copy(deep=True)
     if isinstance(val, np.ndarray):
-        val_copy = val.copy()
-        val_copy.flags.writeable = False
-        return val_copy
+        view = val.view()
+        view.flags.writeable = False
+        return view
     return val
 
 
