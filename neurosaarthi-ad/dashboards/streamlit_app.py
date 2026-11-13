@@ -370,6 +370,15 @@ class ImmutableSetProxy(AbstractSet):
         return val.copy(deep=True)
     def __getattr__(self, name):
         val = getattr(self._obj, name)
+        if isinstance(val, dict):
+            return types.MappingProxyType(val)
+        if isinstance(val, list):
+            return tuple(val)
+        if isinstance(val, set):
+            return frozenset(val)
+        if isinstance(val, pd.DataFrame):
+            return val.copy(deep=True)
+        return val
         return _secure_value(val)
         return _secure_value(val)
 
