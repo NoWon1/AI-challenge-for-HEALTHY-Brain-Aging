@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -13,6 +13,7 @@ import pandas as pd
 @dataclass(frozen=True)
 class ModelComparisonReport:
     """Data structure for a model's evaluation metrics on a cohort."""
+
     model_name: str
     metrics_dict: dict[str, float]
     cohort: str
@@ -45,7 +46,11 @@ def _norm_sf(z: float) -> float:
     return 1.0 - _norm_cdf(z)
 
 
-def delong_test(y_true: np.ndarray | pd.Series, y_score_a: np.ndarray | pd.Series, y_score_b: np.ndarray | pd.Series) -> float:
+def delong_test(
+    y_true: np.ndarray | pd.Series,
+    y_score_a: np.ndarray | pd.Series,
+    y_score_b: np.ndarray | pd.Series,
+) -> float:
     """Compute p-value for comparing two AUROCs using DeLong's test.
 
     Args:
@@ -81,12 +86,12 @@ def delong_test(y_true: np.ndarray | pd.Series, y_score_a: np.ndarray | pd.Serie
         neg_sorted = np.sort(neg_preds)
         pos_sorted = np.sort(pos_preds)
 
-        count_less = np.searchsorted(neg_sorted, pos_preds, side='left')
-        count_equal = np.searchsorted(neg_sorted, pos_preds, side='right') - count_less
+        count_less = np.searchsorted(neg_sorted, pos_preds, side="left")
+        count_equal = np.searchsorted(neg_sorted, pos_preds, side="right") - count_less
         V10 = (count_less + 0.5 * count_equal) / n
 
-        count_less_pos = np.searchsorted(pos_sorted, neg_preds, side='left')
-        count_less_equal_pos = np.searchsorted(pos_sorted, neg_preds, side='right')
+        count_less_pos = np.searchsorted(pos_sorted, neg_preds, side="left")
+        count_less_equal_pos = np.searchsorted(pos_sorted, neg_preds, side="right")
         count_equal_pos = count_less_equal_pos - count_less_pos
         V01 = ((m - count_less_equal_pos) + 0.5 * count_equal_pos) / m
 
@@ -120,7 +125,7 @@ def bootstrap_comparison(
     y_score_b: np.ndarray | pd.Series,
     metric_fn: Callable[..., float],
     n_bootstrap: int = 1000,
-    seed: int = 42
+    seed: int = 42,
 ) -> dict[str, float]:
     """Compare two models using bootstrap resampling.
 
@@ -162,7 +167,11 @@ def bootstrap_comparison(
     ci_lower = float(np.percentile(diffs_arr, 2.5))
     ci_upper = float(np.percentile(diffs_arr, 97.5))
 
-    p_value = float(np.mean(diffs_arr <= 0)) if base_diff > 0 else float(np.mean(diffs_arr >= 0))
+    p_value = (
+        float(np.mean(diffs_arr <= 0))
+        if base_diff > 0
+        else float(np.mean(diffs_arr >= 0))
+    )
     p_value = min(p_value * 2, 1.0)
 
     return {
@@ -173,7 +182,11 @@ def bootstrap_comparison(
     }
 
 
-def select_best_model(reports: list[ModelComparisonReport], metric: str = "auroc", validation_set: str = "external") -> str | None:
+def select_best_model(
+    reports: list[ModelComparisonReport],
+    metric: str = "auroc",
+    validation_set: str = "external",
+) -> str | None:
     """Select the best model based on a specified metric and validation set cohort.
 
     Args:
@@ -184,7 +197,9 @@ def select_best_model(reports: list[ModelComparisonReport], metric: str = "auroc
     Returns:
         Name of the best model, or None if no matching reports found.
     """
-    valid_reports = [r for r in reports if r.cohort == validation_set and metric in r.metrics_dict]
+    valid_reports = [
+        r for r in reports if r.cohort == validation_set and metric in r.metrics_dict
+    ]
     if not valid_reports:
         return None
 

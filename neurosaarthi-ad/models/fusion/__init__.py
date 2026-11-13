@@ -1,2 +1,1 @@
 """Multimodal fusion models."""
-

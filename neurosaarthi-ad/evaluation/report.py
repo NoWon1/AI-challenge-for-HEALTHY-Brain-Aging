@@ -19,4 +19,3 @@ class ValidationReport:
             lines.extend(["", "## Notes"])
             lines.extend(f"- {note}" for note in self.notes)
         return "\n".join(lines) + "\n"
-

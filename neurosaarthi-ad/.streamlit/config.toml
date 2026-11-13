@@ -1,3 +1,5 @@
 [server]
 enableXsrfProtection = true
-showErrorDetails = false
+
+[client]
+showErrorDetails = "none"

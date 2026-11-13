@@ -76,9 +76,11 @@ class GBMRiskClassifier:
                 "Neither lightgbm nor sklearn.ensemble.HistGradientBoostingClassifier is available."
             )
 
+
     def fit(
         self, frame: pd.DataFrame, target_col: str = "event"
-    ) -> "GBMRiskClassifier":
+    ) -> GBMRiskClassifier:
+    def fit(self, frame: pd.DataFrame, target_col: str = "event") -> GBMRiskClassifier:
         """Fit the gradient boosting model with optional isotonic calibration."""
         x = frame[self.feature_columns]
         y = frame[target_col]
@@ -167,7 +169,7 @@ class GBMRiskClassifier:
 
     def fit_multi_horizon(
         self, frame: pd.DataFrame, horizons: tuple[int, ...] = (1, 3, 5)
-    ) -> dict[int, "GBMRiskClassifier"]:
+    ) -> dict[int, GBMRiskClassifier]:
         """Train separate models per horizon.
 
         Assumes target columns exist as `event_{horizon}` in the frame.
