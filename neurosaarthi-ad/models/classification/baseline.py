@@ -27,11 +27,14 @@ class RiskClassifier:
                 steps=[
                     ("imputer", SimpleImputer(strategy="median")),
                     ("scaler", StandardScaler()),
-                    ("model", LogisticRegression(max_iter=1000, class_weight="balanced")),
+                    (
+                        "model",
+                        LogisticRegression(max_iter=1000, class_weight="balanced"),
+                    ),
                 ]
             )
 
-    def fit(self, frame: pd.DataFrame, target_col: str = "event") -> "RiskClassifier":
+    def fit(self, frame: pd.DataFrame, target_col: str = "event") -> RiskClassifier:
         if self.pipeline is not None:
             self.pipeline.fit(frame[self.feature_columns], frame[target_col])
             return self
@@ -51,7 +54,9 @@ class RiskClassifier:
 
     def predict_risk(self, frame: pd.DataFrame) -> pd.Series:
         if self.pipeline is not None:
-            probabilities = self.pipeline.predict_proba(frame[self.feature_columns])[:, 1]
+            probabilities = self.pipeline.predict_proba(frame[self.feature_columns])[
+                :, 1
+            ]
             return pd.Series(probabilities, index=frame.index, name="risk")
 
         if not hasattr(self, "direction_"):

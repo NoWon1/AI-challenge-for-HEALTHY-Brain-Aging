@@ -14,4 +14,3 @@ def test_twinlite_retrieves_nearest_without_self():
     retriever = TwinLiteRetriever(["age", "memory_score"]).fit(frame)
     result = retriever.query(frame.iloc[0], k=1, exclude_participant_id="p1")
     assert result.loc[0, "participant_id"] == "p2"
-

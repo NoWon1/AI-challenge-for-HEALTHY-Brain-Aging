@@ -17,7 +17,9 @@ def pivot_modality_features(features: pd.DataFrame, modality: str) -> pd.DataFra
     ).reset_index()
 
 
-def add_missingness_indicators(frame: pd.DataFrame, protected_columns: set[str] | None = None) -> pd.DataFrame:
+def add_missingness_indicators(
+    frame: pd.DataFrame, protected_columns: set[str] | None = None
+) -> pd.DataFrame:
     """
     Adds missingness indicator columns to the DataFrame.
 
@@ -37,4 +39,3 @@ def add_missingness_indicators(frame: pd.DataFrame, protected_columns: set[str] 
     missing_indicators.columns = [f"{col}__missing" for col in cols_to_process]
 
     return pd.concat([frame, missing_indicators], axis=1)
-
