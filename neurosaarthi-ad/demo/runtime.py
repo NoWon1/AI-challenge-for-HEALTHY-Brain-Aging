@@ -232,6 +232,25 @@ class _LegacyDiscreteTimeRiskEnsemble:
         self.models: list[Pipeline] = []
 
     def _interval_frame(self, frame: pd.DataFrame) -> pd.DataFrame:
+        # ⚡ Bolt: Vectorized NumPy array slicing avoids slow O(N) looping and appending with pd.concat
+        event_times = frame["event_time_days"].to_numpy()
+        events = frame["event"].to_numpy()
+        years = np.arange(1, 6)
+        interval_starts = (years - 1) * 365.25
+        interval_ends = years * 365.25
+        valid_mask = event_times[None, :] > interval_starts[:, None]
+        year_indices, row_indices = np.where(valid_mask)
+        if len(row_indices) == 0:
+            return pd.DataFrame(
+                columns=list(frame.columns) + ["interval_year", "interval_event"]
+            )
+        result = frame.iloc[row_indices].copy()
+        result["interval_year"] = years[year_indices].astype(float)
+        result["interval_event"] = (
+            (events[row_indices] == 1)
+            & (event_times[row_indices] <= interval_ends[year_indices])
+        ).astype(int)
+        return result.reset_index(drop=True)
         interval_rows: list[pd.DataFrame] = []
         for year in range(1, 6):
             interval_start = (year - 1) * 365.25
@@ -247,6 +266,7 @@ class _LegacyDiscreteTimeRiskEnsemble:
         return pd.concat(interval_rows, ignore_index=True)
 
     def fit(self, frame: pd.DataFrame) -> DiscreteTimeRiskEnsemble:
+
     def fit(self, frame: pd.DataFrame) -> _LegacyDiscreteTimeRiskEnsemble:
         available = frame[self.feature_columns].notna().any(axis=1)
         training = frame.loc[available].reset_index(drop=True)
@@ -318,19 +338,25 @@ class GBMDiscreteTimeRiskEnsemble:
         self.models = []
 
     def _interval_frame(self, frame):
-        interval_rows: list[pd.DataFrame] = []
-        for year in range(1, 6):
-            interval_start = (year - 1) * 365.25
-            interval_end = year * 365.25
-            eligible = frame[frame["event_time_days"] > interval_start].copy()
-            if eligible.empty:
-                continue
-            eligible["interval_year"] = float(year)
-            eligible["interval_event"] = (
-                (eligible["event"] == 1) & (eligible["event_time_days"] <= interval_end)
-            ).astype(int)
-            interval_rows.append(eligible)
-        return pd.concat(interval_rows, ignore_index=True)
+        # ⚡ Bolt: Vectorized NumPy array slicing avoids slow O(N) looping and appending with pd.concat
+        event_times = frame["event_time_days"].to_numpy()
+        events = frame["event"].to_numpy()
+        years = np.arange(1, 6)
+        interval_starts = (years - 1) * 365.25
+        interval_ends = years * 365.25
+        valid_mask = event_times[None, :] > interval_starts[:, None]
+        year_indices, row_indices = np.where(valid_mask)
+        if len(row_indices) == 0:
+            return pd.DataFrame(
+                columns=list(frame.columns) + ["interval_year", "interval_event"]
+            )
+        result = frame.iloc[row_indices].copy()
+        result["interval_year"] = years[year_indices].astype(float)
+        result["interval_event"] = (
+            (events[row_indices] == 1)
+            & (event_times[row_indices] <= interval_ends[year_indices])
+        ).astype(int)
+        return result.reset_index(drop=True)
 
     def fit(self, frame):
         available = frame[self.feature_columns].notna().any(axis=1)
@@ -852,12 +878,6 @@ class DemoRuntime:
             ["participant_id", "visit_index"]
         )
         # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop
-        visits_monotonic = bool(
-            visits.groupby("participant_id", sort=False)["baseline_days"]
-            .diff()
-            .fillna(0)
-            .ge(0)
-            .all()
         # ⚡ Bolt: Vectorized monotonicity check avoids slow .apply() loop and slow .groupby() overhead
         pids = visits["participant_id"].to_numpy()
         days = visits["baseline_days"].to_numpy()

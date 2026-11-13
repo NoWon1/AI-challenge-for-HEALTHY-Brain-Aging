@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 import sys
 from pathlib import Path
 
@@ -11,78 +10,15 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import re
+import types
+from collections.abc import Mapping, Sequence
+from collections.abc import Set as AbstractSet
+from typing import Any
+import re
 
-import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
-
-from demo.runtime import (
-    PRESET_PROFILES,
-    ParticipantProfile,
-    build_demo_runtime,
-    profile_with,
-)
-from demo.synthetic import generate_demo_cohort
-
-
-
-
-
-COLORS = {
-    "teal": "#0F5C5B",
-    "teal_dark": "#173B3A",
-    "saffron": "#D98E32",
-    "coral": "#C96755",
-    "cream": "#F6F3EA",
-    "paper": "#FFFDF8",
-    "sage": "#DCE9E3",
-    "muted": "#657775",
-}
-
-
-def _inject_styles() -> None:
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{ background: {COLORS["cream"]}; color: {COLORS["teal_dark"]}; }}
-        [data-testid="stSidebar"] {{ background: #EAF0EB; border-right: 1px solid #CBD8D2; }}
-        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {COLORS["teal_dark"]}; }}
-        .block-container {{ max-width: 1320px; padding-top: 1.8rem; padding-bottom: 3rem; }}
-        h1, h2, h3 {{ color: {COLORS["teal_dark"]}; letter-spacing: -0.02em; }}
-        .ns-hero {{
-            background: linear-gradient(125deg, #123F3E 0%, #0F5C5B 58%, #38736C 100%);
-            border-radius: 22px; padding: 2rem 2.1rem; color: white; margin-bottom: 1rem;
-            box-shadow: 0 16px 40px rgba(28, 61, 58, 0.16);
-        }}
-        .ns-kicker {{ color: #F2C985; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }}
-        .ns-hero h1 {{ color: white; margin: 0.3rem 0 0.55rem; font-size: clamp(2rem, 4vw, 3.25rem); line-height: 1.04; }}
-        .ns-hero p {{ color: #E1ECE8; max-width: 780px; font-size: 1.02rem; margin: 0; }}
-        .ns-pills {{ display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.2rem; }}
-        .ns-pill {{ background: rgba(255,255,255,.11); border: 1px solid rgba(255,255,255,.19); border-radius: 999px; padding: .35rem .7rem; font-size: .78rem; }}
-        .ns-risk {{ background: {COLORS["paper"]}; border: 1px solid #D9E2DD; border-radius: 16px; padding: 1rem 1.05rem; min-height: 142px; box-shadow: 0 8px 22px rgba(29,58,55,.06); }}
-        .ns-risk .label {{ color: {COLORS["muted"]}; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 750; }}
-        .ns-risk .value {{ color: {COLORS["teal"]}; font-size: 2.2rem; font-weight: 780; line-height: 1.15; margin: .35rem 0; }}
-        .ns-risk .interval {{ color: {COLORS["muted"]}; font-size: .82rem; }}
-        .ns-section-note {{ color: {COLORS["muted"]}; margin-top: -.55rem; margin-bottom: 1rem; }}
-        .ns-callout {{ background: #FFF5E5; border: 1px solid #EBC994; border-left: 5px solid {COLORS["saffron"]}; border-radius: 10px; padding: .75rem 1rem; color: #604A29; margin: .8rem 0 1rem; }}
-        .ns-flow {{ display:grid; grid-template-columns: repeat(4,1fr); gap:.65rem; margin: 1rem 0; }}
-        .ns-flow div {{ background:{COLORS["paper"]}; border:1px solid #D9E2DD; border-radius:12px; padding:.85rem; font-size:.85rem; }}
-        .ns-flow b {{ color:{COLORS["teal"]}; display:block; margin-bottom:.25rem; }}
-        div[data-testid="stMetric"] {{ background: {COLORS["paper"]}; border: 1px solid #D9E2DD; padding: .8rem 1rem; border-radius: 14px; }}
-        div[data-testid="stDataFrame"] {{ border: 1px solid #D9E2DD; border-radius: 12px; overflow: hidden; }}
-        .stTabs [data-baseweb="tab-list"] {{ gap: .4rem; }}
-        .stTabs [data-baseweb="tab"] {{ background: #E2EBE6; border-radius: 999px; padding: .4rem 1rem; }}
-        .stTabs [aria-selected="true"] {{ background: {COLORS["teal"]} !important; color: white !important; }}
-        @media (max-width: 800px) {{ .ns-flow {{ grid-template-columns: 1fr 1fr; }} .block-container {{ padding-left: 1rem; padding-right: 1rem; }} }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-from collections.abc import Mapping, Sequence
-from collections.abc import Set as AbstractSet
 
 
 def _secure_value(val):
@@ -90,18 +26,18 @@ def _secure_value(val):
         return ImmutableDictProxy(val)
     if isinstance(val, list):
         return ImmutableListProxy(val)
-    if isinstance(val, set):
-        return ImmutableSetProxy(val)
     if isinstance(val, tuple):
         if hasattr(type(val), "_fields"):
             return type(val)(*(_secure_value(x) for x in val))
         return tuple(_secure_value(x) for x in val)
+    if isinstance(val, set):
+        return ImmutableSetProxy(val)
     if isinstance(val, pd.DataFrame):
         return val.copy(deep=True)
     if isinstance(val, np.ndarray):
-        view = val.view()
-        view.flags.writeable = False
-        return view
+        val_copy = val.copy()
+        val_copy.flags.writeable = False
+        return val_copy
     return val
 
 
@@ -156,25 +92,304 @@ class ImmutableSetProxy(AbstractSet):
         return set(self) == set(other)
 
 
+def _is_namedtuple(val: object) -> bool:
+    """Check if an object is an instance of a namedtuple."""
+    return isinstance(val, tuple) and hasattr(val, "_fields")
+
+
+def _secure_value(val: object) -> object:
+    """
+    Recursively protect values returned from the cache proxy.
+    Freezes lists into tuples, sets into frozensets, dictionaries
+    into MappingProxyType, and returns deep copies / read-only buffers.
+    """
+    if val is None or isinstance(val, (int, float, str, bool, bytes)):
+        return val
+
+    # Namedtuples are already immutable; secure their internal fields if any
+    if _is_namedtuple(val):
+        return val.__class__(*(_secure_value(x) for x in val))
+
+    # Plain tuples: deeply secure elements
+    if isinstance(val, tuple):
+        return tuple(_secure_value(x) for x in val)
+
+    # Lists: freeze to immutable tuple
+    if isinstance(val, list):
+        return tuple(_secure_value(x) for x in val)
+
+    # Sets: freeze to immutable frozenset
+    if isinstance(val, (set, frozenset)):
+        return frozenset(_secure_value(x) for x in val)
+
+    # Dictionaries: wrap in MappingProxyType with secured values
+    if isinstance(val, dict):
+        return types.MappingProxyType({k: _secure_value(v) for k, v in val.items()})
+
+    # Pandas DataFrames: return defensive deep copy
+    if isinstance(val, (pd.DataFrame, pd.Series)):
+        return val.copy(deep=True)
+
+    # NumPy arrays: set read-only flag
+    if isinstance(val, np.ndarray):
+        arr = val.view()
+        arr.flags.writeable = False
+        return arr
+
+    return val
+
+
+
 class ImmutableRuntimeProxy:
-    """Read-only proxy to prevent cross-session state corruption in Streamlit cache."""
+    """
+    Proxy wrapping cached runtime resources to enforce CWE-374 protection.
+    """
 
-    def __init__(self, obj):
-        object.__setattr__(self, "_obj", obj)
+    def __init__(self, target: object):
+        object.__setattr__(self, "_target", target)
 
-    def __getattr__(self, name):
-        val = getattr(self._obj, name)
+    def __getattr__(self, name: str) -> object:
+        attr = getattr(self._target, name)
+        return self._secure_value(attr)
+
+    def _secure_value(self, val: Any) -> Any:
+        if isinstance(val, dict):
+            return MappingProxyType({k: self._secure_value(v) for k, v in val.items()})
+        if isinstance(val, pd.DataFrame):
+            return val.copy(deep=True)
+        if isinstance(val, list):
+            return tuple(self._secure_value(x) for x in val)
+        if isinstance(val, set):
+            return frozenset(self._secure_value(x) for x in val)
+        if isinstance(val, tuple):
+            if hasattr(type(val), "_fields"):
+                return type(val)(*(self._secure_value(x) for x in val))
+            return tuple(self._secure_value(x) for x in val)
+        if isinstance(val, np.ndarray):
+            view = val.view()
+            view.flags.writeable = False
+            return view
+        return val
+        return _secure_value(attr)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise AttributeError(
+            f"Modification of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
+        )
+
+    def __getitem__(self, item: object) -> object:
+        val = self._target[item]
         return _secure_value(val)
 
-    def __setattr__(self, name, value):
-        raise AttributeError(
-            f"Modification of attribute {name} is forbidden: cached runtime is read-only across sessions."
-        )
+    def __setattr__(self, name: str, value: object):
+        raise AttributeError(f"Modification of attribute '{name}' is forbidden")
 
-    def __delattr__(self, name):
-        raise AttributeError(
-            f"Deletion of attribute {name} is forbidden: cached runtime is read-only across sessions."
-        )
+    def __delattr__(self, name: str):
+        raise AttributeError(f"Deletion of attribute '{name}' is forbidden")
+
+    def __setitem__(self, key: object, value: object):
+        raise TypeError(f"Cannot mutate immutable proxy item '{key}'")
+
+COLORS = {
+    "teal": "#0F5C5B",
+    "teal_dark": "#173B3A",
+    "saffron": "#D98E32",
+    "coral": "#C96755",
+    "cream": "#F6F3EA",
+    "paper": "#FFFDF8",
+    "sage": "#DCE9E3",
+    "muted": "#657775",
+}
+
+
+def _inject_styles() -> None:
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{ background: {COLORS["cream"]}; color: {COLORS["teal_dark"]}; }}
+        [data-testid="stSidebar"] {{ background: #EAF0EB; border-right: 1px solid #CBD8D2; }}
+        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {COLORS["teal_dark"]}; }}
+        .block-container {{ max-width: 1320px; padding-top: 1.8rem; padding-bottom: 3rem; }}
+        h1, h2, h3 {{ color: {COLORS["teal_dark"]}; letter-spacing: -0.02em; }}
+        .ns-hero {{
+            background: linear-gradient(125deg, #123F3E 0%, #0F5C5B 58%, #38736C 100%);
+            border-radius: 22px; padding: 2rem 2.1rem; color: white; margin-bottom: 1rem;
+            box-shadow: 0 16px 40px rgba(28, 61, 58, 0.16);
+        }}
+        .ns-kicker {{ color: #F2C985; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }}
+        .ns-hero h1 {{ color: white; margin: 0.3rem 0 0.55rem; font-size: clamp(2rem, 4vw, 3.25rem); line-height: 1.04; }}
+        .ns-hero p {{ color: #E1ECE8; max-width: 780px; font-size: 1.02rem; margin: 0; }}
+        .ns-pills {{ display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.2rem; }}
+        .ns-pill {{ background: rgba(255,255,255,.11); border: 1px solid rgba(255,255,255,.19); border-radius: 999px; padding: .35rem .7rem; font-size: .78rem; }}
+        .ns-risk {{ background: {COLORS["paper"]}; border: 1px solid #D9E2DD; border-radius: 16px; padding: 1rem 1.05rem; min-height: 142px; box-shadow: 0 8px 22px rgba(29,58,55,.06); }}
+        .ns-risk .label {{ color: {COLORS["muted"]}; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 750; }}
+        .ns-risk .value {{ color: {COLORS["teal"]}; font-size: 2.2rem; font-weight: 780; line-height: 1.15; margin: .35rem 0; }}
+        .ns-risk .interval {{ color: {COLORS["muted"]}; font-size: .82rem; }}
+        .ns-section-note {{ color: {COLORS["muted"]}; margin-top: -.55rem; margin-bottom: 1rem; }}
+        .ns-callout {{ background: #FFF5E5; border: 1px solid #EBC994; border-left: 5px solid {COLORS["saffron"]}; border-radius: 10px; padding: .75rem 1rem; color: #604A29; margin: .8rem 0 1rem; }}
+        .ns-flow {{ display:grid; grid-template-columns: repeat(4,1fr); gap:.65rem; margin: 1rem 0; }}
+        .ns-flow div {{ background:{COLORS["paper"]}; border:1px solid #D9E2DD; border-radius:12px; padding:.85rem; font-size:.85rem; }}
+        .ns-flow b {{ color:{COLORS["teal"]}; display:block; margin-bottom:.25rem; }}
+        div[data-testid="stMetric"] {{ background: {COLORS["paper"]}; border: 1px solid #D9E2DD; padding: .8rem 1rem; border-radius: 14px; }}
+        div[data-testid="stDataFrame"] {{ border: 1px solid #D9E2DD; border-radius: 12px; overflow: hidden; }}
+        .stTabs [data-baseweb="tab-list"] {{ gap: .4rem; }}
+        .stTabs [data-baseweb="tab"] {{ background: #E2EBE6; border-radius: 999px; padding: .4rem 1rem; }}
+        .stTabs [aria-selected="true"] {{ background: {COLORS["teal"]} !important; color: white !important; }}
+        @media (max-width: 800px) {{ .ns-flow {{ grid-template-columns: 1fr 1fr; }} .block-container {{ padding-left: 1rem; padding-right: 1rem; }} }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _is_namedtuple(val: object) -> bool:
+    """Check if an object is an instance of a namedtuple."""
+    return isinstance(val, tuple) and hasattr(val, "_fields")
+
+
+def _secure_value(val: object) -> object:
+    """
+    Recursively protect values returned from the cache proxy.
+    Freezes lists into tuples, sets into frozensets, dictionaries
+    into MappingProxyType, and returns deep copies / read-only buffers.
+    """
+    if val is None or isinstance(val, (int, float, str, bool, bytes)):
+        return val
+def _secure_value(val):
+    if isinstance(val, dict):
+        return ImmutableDictProxy(val)
+    if isinstance(val, list):
+        return ImmutableListProxy(val)
+    if isinstance(val, set):
+        return ImmutableSetProxy(val)
+    if isinstance(val, tuple):
+        if hasattr(type(val), "_fields"):
+            return type(val)(*(_secure_value(x) for x in val))
+        return ImmutableTupleProxy(val)
+    if isinstance(val, pd.DataFrame):
+        return val.copy(deep=True)
+    if isinstance(val, np.ndarray):
+        view = val.view()
+        view.flags.writeable = False
+        return view
+    return val
+
+
+class ImmutableTupleProxy:
+    def __init__(self, tpl):
+        self._tpl = tpl
+
+    def __getattr__(self, name):
+        val = getattr(self._tpl, name)
+        return _secure_value(val)
+
+    def __getitem__(self, idx):
+        return _secure_value(self._tpl[idx])
+
+    def __len__(self):
+        return len(self._tpl)
+
+    def __iter__(self):
+        for item in self._tpl:
+            yield _secure_value(item)
+
+    def __eq__(self, other):
+        if not isinstance(other, tuple):
+            return False
+        if len(self) != len(other):
+            return False
+        return all(a == b for a, b in zip(self, other, strict=False))
+
+    def __repr__(self):
+        return f"ImmutableTupleProxy({self._tpl!r})"
+
+
+class ImmutableDictProxy(Mapping):
+    def __init__(self, d):
+        self._d = d
+
+    def __getitem__(self, key):
+        return _secure_value(self._d[key])
+
+    def __iter__(self):
+        return iter(self._d)
+
+    def __len__(self):
+        return len(self._d)
+
+
+class ImmutableListProxy(Sequence):
+    def __init__(self, lst):
+        self._lst = lst
+
+    def __getitem__(self, idx):
+        return _secure_value(self._lst[idx])
+
+    def __len__(self):
+        return len(self._lst)
+
+    def __eq__(self, other):
+        if not isinstance(other, (list, tuple, Sequence)):
+            return False
+        if len(self) != len(other):
+            return False
+        return all(a == b for a, b in zip(self, other))
+
+
+class ImmutableSetProxy(AbstractSet):
+    def __init__(self, s):
+        self._s = s
+
+    def __contains__(self, item):
+        return item in self._s
+
+    def __iter__(self):
+        return (_secure_value(x) for x in self._s)
+
+    # Namedtuples are already immutable; secure their internal fields if any
+    if _is_namedtuple(val):
+        return val.__class__(*(_secure_value(x) for x in val))
+
+    # Plain tuples: deeply secure elements
+    if isinstance(val, tuple):
+        return tuple(_secure_value(x) for x in val)
+
+    # Lists: freeze to immutable tuple
+    if isinstance(val, list):
+        return tuple(_secure_value(x) for x in val)
+
+    # Sets: freeze to immutable frozenset
+    if isinstance(val, (set, frozenset)):
+        return frozenset(_secure_value(x) for x in val)
+
+    # Dictionaries: wrap in MappingProxyType with secured values
+    if isinstance(val, dict):
+        return types.MappingProxyType({k: _secure_value(v) for k, v in val.items()})
+
+    # Pandas DataFrames: return defensive deep copy
+    if isinstance(val, (pd.DataFrame, pd.Series)):
+        return val.copy(deep=True)
+    def __getattr__(self, name):
+        val = getattr(self._obj, name)
+        if isinstance(val, dict):
+            return types.MappingProxyType(val)
+        if isinstance(val, list):
+            return tuple(val)
+        if isinstance(val, set):
+            return frozenset(val)
+        if isinstance(val, pd.DataFrame):
+            return val.copy(deep=True)
+        return val
+        return _secure_value(val)
+        return _secure_value(val)
+
+    # NumPy arrays: set read-only flag
+    if isinstance(val, np.ndarray):
+        arr = val.view()
+        arr.flags.writeable = False
+        return arr
+
+    return val
 
 
 @st.cache_resource(show_spinner="Preparing the synthetic seven-cohort workbench…")
