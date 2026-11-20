@@ -25,6 +25,175 @@ from demo.runtime import (
 )
 from demo.synthetic import generate_demo_cohort
 
+def _secure_value(val):
+    if isinstance(val, dict):
+        return ImmutableDictProxy(val)
+    if isinstance(val, list):
+        return ImmutableListProxy(val)
+    if isinstance(val, tuple):
+        if hasattr(type(val), "_fields"):
+            return type(val)(*(_secure_value(x) for x in val))
+        return tuple(_secure_value(x) for x in val)
+    if isinstance(val, set):
+        return ImmutableSetProxy(val)
+    if isinstance(val, pd.DataFrame):
+        return val.copy(deep=True)
+    if isinstance(val, np.ndarray):
+        val_copy = val.copy()
+        val_copy.flags.writeable = False
+        return val_copy
+    return val
+
+
+class ImmutableDictProxy(Mapping):
+    def __init__(self, d):
+        self._d = d
+
+    def __getitem__(self, key):
+        return _secure_value(self._d[key])
+
+    def __iter__(self):
+        return iter(self._d)
+
+    def __len__(self):
+        return len(self._d)
+
+
+class ImmutableListProxy(Sequence):
+    def __init__(self, lst):
+        self._lst = lst
+
+    def __getitem__(self, idx):
+        return _secure_value(self._lst[idx])
+
+    def __len__(self):
+        return len(self._lst)
+
+    def __eq__(self, other):
+        if not isinstance(other, (list, tuple, Sequence)):
+            return False
+        if len(self) != len(other):
+            return False
+        return all(a == b for a, b in zip(self, other))
+
+
+class ImmutableSetProxy(AbstractSet):
+    def __init__(self, s):
+        self._s = s
+
+    def __contains__(self, item):
+        return item in self._s
+
+    def __iter__(self):
+        return (_secure_value(x) for x in self._s)
+
+    def __len__(self):
+        return len(self._s)
+
+    def __eq__(self, other):
+        if not isinstance(other, (set, frozenset, AbstractSet)):
+            return False
+        return set(self) == set(other)
+
+
+def _is_namedtuple(val: object) -> bool:
+    """Check if an object is an instance of a namedtuple."""
+    return isinstance(val, tuple) and hasattr(val, "_fields")
+
+
+def _secure_value(val: object) -> object:
+    """
+    Recursively protect values returned from the cache proxy.
+    Freezes lists into tuples, sets into frozensets, dictionaries
+    into MappingProxyType, and returns deep copies / read-only buffers.
+    """
+    if val is None or isinstance(val, (int, float, str, bool, bytes)):
+        return val
+
+    # Namedtuples are already immutable; secure their internal fields if any
+    if _is_namedtuple(val):
+        return val.__class__(*(_secure_value(x) for x in val))
+
+    # Plain tuples: deeply secure elements
+    if isinstance(val, tuple):
+        return tuple(_secure_value(x) for x in val)
+
+    # Lists: freeze to immutable tuple
+    if isinstance(val, list):
+        return tuple(_secure_value(x) for x in val)
+
+    # Sets: freeze to immutable frozenset
+    if isinstance(val, (set, frozenset)):
+        return frozenset(_secure_value(x) for x in val)
+
+    # Dictionaries: wrap in MappingProxyType with secured values
+    if isinstance(val, dict):
+        return types.MappingProxyType({k: _secure_value(v) for k, v in val.items()})
+
+    # Pandas DataFrames: return defensive deep copy
+    if isinstance(val, (pd.DataFrame, pd.Series)):
+        return val.copy(deep=True)
+
+    # NumPy arrays: set read-only flag
+    if isinstance(val, np.ndarray):
+        arr = val.view()
+        arr.flags.writeable = False
+        return arr
+
+    return val
+
+
+
+class ImmutableRuntimeProxy:
+    """
+    Proxy wrapping cached runtime resources to enforce CWE-374 protection.
+    """
+
+    def __init__(self, target: object):
+        object.__setattr__(self, "_target", target)
+
+    def __getattr__(self, name: str) -> object:
+        attr = getattr(self._target, name)
+        return self._secure_value(attr)
+
+    def _secure_value(self, val: Any) -> Any:
+        if isinstance(val, dict):
+            return MappingProxyType({k: self._secure_value(v) for k, v in val.items()})
+        if isinstance(val, pd.DataFrame):
+            return val.copy(deep=True)
+        if isinstance(val, list):
+            return tuple(self._secure_value(x) for x in val)
+        if isinstance(val, set):
+            return frozenset(self._secure_value(x) for x in val)
+        if isinstance(val, tuple):
+            if hasattr(type(val), "_fields"):
+                return type(val)(*(self._secure_value(x) for x in val))
+            return tuple(self._secure_value(x) for x in val)
+        if isinstance(val, np.ndarray):
+            view = val.view()
+            view.flags.writeable = False
+            return view
+        return val
+        return _secure_value(attr)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise AttributeError(
+            f"Modification of attribute '{name}' is forbidden: cached runtime is read-only across sessions."
+        )
+
+    def __getitem__(self, item: object) -> object:
+        val = self._target[item]
+        return _secure_value(val)
+
+    def __setattr__(self, name: str, value: object):
+        raise AttributeError(f"Modification of attribute '{name}' is forbidden")
+
+    def __delattr__(self, name: str):
+        raise AttributeError(f"Deletion of attribute '{name}' is forbidden")
+
+    def __setitem__(self, key: object, value: object):
+        raise TypeError(f"Cannot mutate immutable proxy item '{key}'")
+
 COLORS = {
     "teal": "#0F5C5B",
     "teal_dark": "#173B3A",
@@ -97,6 +266,10 @@ def _secure_value(val):
             return view
         except (AttributeError, ValueError):
             pass
+    if isinstance(val, np.ndarray):
+        view = val.view()
+        view.flags.writeable = False
+        return view
     return val
 
 
@@ -108,6 +281,18 @@ class ImmutableRuntimeProxy:
 
     def __getattr__(self, name):
         return _secure_value(getattr(self._obj, name))
+        val = getattr(self._obj, name)
+        if isinstance(val, dict):
+            return types.MappingProxyType(val)
+        if isinstance(val, list):
+            return tuple(val)
+        if isinstance(val, set):
+            return frozenset(val)
+        if isinstance(val, pd.DataFrame):
+            return val.copy(deep=True)
+        return val
+        return _secure_value(val)
+        return _secure_value(val)
 
     def __setattr__(self, name, value):
         raise AttributeError(
